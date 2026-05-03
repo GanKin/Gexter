@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-03T01:33:11.340Z",
+  "phase": "01",
+  "phase_name": "shell-boundary",
+  "phase_dir": ".planning/phases/01-shell-boundary",
+  "plan": 3,
+  "task": 3,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "搭建 WebUI 应用壳和基础路由",
+      "status": "done",
+      "commit": "wip-pending"
+    },
+    {
+      "id": 2,
+      "name": "定义与现有 Dexter 核心交互的适配边界",
+      "status": "done",
+      "commit": "wip-pending"
+    },
+    {
+      "id": 3,
+      "name": "验证 CLI / Gateway 与新外壳并存",
+      "status": "done",
+      "commit": "wip-pending"
+    }
+  ],
+  "remaining_tasks": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {
+      "decision": "WebUI 前端最终采用 Next.js App Router + shadcn/ui",
+      "rationale": "用户明确希望 Next.js + shadcn/ui；这也更适合后续扩展浏览器交互与分层组件。",
+      "phase": "01"
+    },
+    {
+      "decision": "WebUI 运行时边界保留 Bun server 监听 5174",
+      "rationale": "将 API / runtime boundary 留在轻量 Bun 进程里，避免 Next 构建直接拖入 Dexter Agent / tool / memory 的深层依赖。",
+      "phase": "01"
+    },
+    {
+      "decision": "CLI 与 Gateway 脚本保持原样",
+      "rationale": "Phase 1 的目标是新增入口，不破坏既有入口，兼容性回归测试已覆盖这一点。",
+      "phase": "01"
+    }
+  ],
+  "uncommitted_files": [
+    ".gitignore",
+    ".planning/STATE.md",
+    ".planning/config.json",
+    ".planning/phases/01-shell-boundary/01-shell-boundary-01-SUMMARY.md",
+    ".planning/phases/01-shell-boundary/01-shell-boundary-02-SUMMARY.md",
+    ".planning/phases/01-shell-boundary/01-shell-boundary-03-SUMMARY.md",
+    "bun.lock",
+    "components.json",
+    "next-env.d.ts",
+    "next.config.mjs",
+    "package.json",
+    "postcss.config.mjs",
+    "src/app/api/runtime/health/route.ts",
+    "src/app/api/runtime/sessions/route.ts",
+    "src/app/globals.css",
+    "src/app/layout.tsx",
+    "src/app/page.tsx",
+    "src/components/ui/badge.tsx",
+    "src/components/ui/button.tsx",
+    "src/components/ui/card.tsx",
+    "src/components/ui/separator.tsx",
+    "src/components/ui/textarea.tsx",
+    "src/components/workspace-shell.tsx",
+    "src/utils/config.ts",
+    "src/utils/in-memory-chat-history.ts",
+    "src/webui/compatibility.test.ts",
+    "src/webui/runtime-adapter.test.ts",
+    "src/webui/runtime/adapter.ts",
+    "src/webui/runtime/health.ts",
+    "src/webui/runtime/session.ts",
+    "src/webui/runtime/types.ts",
+    "src/webui/server/index.ts",
+    "src/webui/server/routes.ts",
+    "tailwind.config.ts",
+    "tsconfig.json"
+  ],
+  "next_action": "开始 Phase 2 的规划或执行前准备，基于当前 Next.js + shadcn/ui WebUI 外壳继续扩展流式聊天能力。",
+  "context_notes": "Phase 1 已完成并验证：Next.js 页面在 5173 运行，Bun runtime server 在 5174 返回 health/session，New session 按钮可创建并渲染会话信息。后续恢复时优先沿着这个边界继续，而不是回退到 Vite 方案。"
+}
