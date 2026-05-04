@@ -12,7 +12,7 @@
 
 ### Conversation
 
-- [ ] **WEB-03**: User can send a prompt and receive streamed assistant output in the browser.
+- [x] **WEB-03**: User can send a prompt and receive streamed assistant output in the browser.
 - [ ] **WEB-04**: User can see tool calls, approvals, and intermediate agent state during a run.
 - [ ] **WEB-05**: User can stop, retry, or continue an in-flight run from the webui.
 
@@ -59,7 +59,7 @@
 |-------------|-------|--------|
 | WEB-01 | Phase 1 | Pending |
 | WEB-02 | Phase 1 | Pending |
-| WEB-03 | Phase 2 | Pending |
+| WEB-03 | Phase 2 | Complete |
 | WEB-04 | Phase 3 | Pending |
 | WEB-05 | Phase 3 | Pending |
 | WEB-06 | Phase 4 | Pending |
