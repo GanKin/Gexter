@@ -1,10 +1,11 @@
 import { InMemoryChatHistory } from '../../utils/in-memory-chat-history';
+import { registerSession } from './registry';
 import type { WebRuntimeSession } from './types';
 
 export function createWebRuntimeSession(model = 'gpt-5.4'): WebRuntimeSession {
   const sessionId = `web-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 
-  return {
+  const session: WebRuntimeSession = {
     id: sessionId,
     model,
     createdAt: new Date().toISOString(),
@@ -12,4 +13,8 @@ export function createWebRuntimeSession(model = 'gpt-5.4'): WebRuntimeSession {
     approvedTools: new Set<string>(),
     status: 'idle',
   };
+
+  registerSession(session);
+
+  return session;
 }

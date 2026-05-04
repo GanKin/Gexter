@@ -1,4 +1,13 @@
-import type { AgentEvent, AgentConfig } from '../../agent/types';
+import type {
+  AgentConfig,
+  DoneEvent,
+  StreamProgressEvent,
+  ThinkingEvent,
+  ToolEndEvent,
+  ToolErrorEvent,
+  ToolStartEvent,
+  AgentEvent,
+} from '../../agent/types';
 import type { InMemoryChatHistory } from '../../utils/in-memory-chat-history';
 
 export type RuntimeHealth = {
@@ -41,3 +50,20 @@ export type RunWebSessionOptions = {
   config?: WebRuntimeAgentConfig;
   onEvent?: (event: WebRuntimeEvent) => void | Promise<void>;
 };
+
+export type StreamableAgentEvent =
+  | ThinkingEvent
+  | StreamProgressEvent
+  | ToolStartEvent
+  | ToolEndEvent
+  | ToolErrorEvent
+  | DoneEvent;
+
+export const PHASE2_EVENT_TYPES = new Set<StreamableAgentEvent['type']>([
+  'thinking',
+  'stream_progress',
+  'tool_start',
+  'tool_end',
+  'tool_error',
+  'done',
+]);
