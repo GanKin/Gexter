@@ -78,6 +78,7 @@ export interface Message {
 export interface ThinkingEvent {
   type: 'thinking';
   message: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -89,6 +90,7 @@ export interface ToolStartEvent {
   args: Record<string, unknown>;
   /** Unique tool_call ID from the AIMessage (for concurrent execution ordering). */
   toolCallId?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -102,6 +104,7 @@ export interface ToolEndEvent {
   duration: number;
   /** Unique tool_call ID from the AIMessage (for concurrent execution ordering). */
   toolCallId?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -113,6 +116,7 @@ export interface ToolErrorEvent {
   error: string;
   /** Unique tool_call ID from the AIMessage (for concurrent execution ordering). */
   toolCallId?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -199,6 +203,7 @@ export interface StreamProgressEvent {
   type: 'stream_progress';
   charDelta: number;
   mode: StreamMode;
+  [key: string]: unknown;
 }
 
 /**
@@ -259,6 +264,7 @@ export interface DoneEvent {
   totalTime: number;
   tokenUsage?: TokenUsage;
   tokensPerSecond?: number;
+  [key: string]: unknown;
 }
 
 /**
