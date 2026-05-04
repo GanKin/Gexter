@@ -1,119 +1,53 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-03T14:11:51.629Z",
-  "phase": "2",
-  "phase_name": "Streaming Chat",
-  "phase_dir": ".planning/phases/02-streaming-chat",
-  "plan": 0,
+  "timestamp": "2026-05-04T09:39:41.011Z",
+  "phase": "03",
+  "phase_name": "run transparency",
+  "phase_dir": ".planning/phases/03-run-transparency",
+  "plan": 1,
   "task": 0,
-  "total_tasks": 0,
+  "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
     {
       "id": 1,
-      "name": "加载项目级上下文并确认 Phase 2 边界",
+      "name": "Phase 02 streaming chat completed",
       "status": "done",
-      "commit": "wip-pending"
-    },
-    {
-      "id": 2,
-      "name": "扫描现有 WebUI shell 和 runtime 接口",
-      "status": "done",
-      "commit": "wip-pending"
-    },
-    {
-      "id": 3,
-      "name": "提炼 Phase 2 灰区并等待用户选择",
-      "status": "in_progress",
-      "progress": "已从代码库中识别出传输协议、会话归属、历史写入责任、API 放置位置和事件展示粒度五类候选决策。"
+      "commit": "bfdf1d8"
     }
   ],
   "remaining_tasks": [
     {
-      "id": 4,
-      "name": "根据用户选择深入讨论 Phase 2 灰区",
+      "id": 1,
+      "name": "03-01: 渲染工具调用和审批流",
       "status": "not_started"
     },
     {
-      "id": 5,
-      "name": "创建 Phase 2 CONTEXT.md",
+      "id": 2,
+      "name": "03-02: 加入停止、重试与继续控制",
       "status": "not_started"
     },
     {
-      "id": 6,
-      "name": "进入 Phase 2 规划",
+      "id": 3,
+      "name": "03-03: 接入模型 / provider 选择器",
       "status": "not_started"
     }
   ],
-  "blockers": [
-    {
-      "description": "Phase 2 还没有完成上下文收敛，需要用户先选择要讨论的灰区，才能生成可用于规划的 CONTEXT.md。",
-      "type": "human_action",
-      "workaround": "先使用保守默认值不会破坏边界，但会降低规划精度。"
-    }
-  ],
-  "human_actions_pending": [
-    {
-      "action": "选择 Phase 2 需要优先讨论的灰区",
-      "context": "当前已识别出传输协议、会话归属、历史写入责任、API 放置位置和事件展示粒度等候选项。",
-      "blocking": true
-    }
-  ],
+  "blockers": [],
+  "human_actions_pending": [],
   "decisions": [
     {
-      "decision": "Phase 2 仍然严格限定为 Streaming Chat，不扩展到工具透明度、会话恢复或偏好保存。",
-      "rationale": "ROADMAP 已将这些能力划分到 Phase 3、Phase 4，避免 scope creep。",
-      "phase": "2"
+      "decision": "Phase 03 should build directly on the completed streaming chat surface",
+      "rationale": "The browser chat transport and message rendering are already in place, so the next phase can focus on observability and control without reworking transport plumbing.",
+      "phase": "03"
     },
     {
-      "decision": "继续以当前 Next.js + shadcn/ui WebUI 外壳为基础推进，而不是回退到旧的 Vite 方案。",
-      "rationale": "Phase 1 已完成并验证，且现有 workspace shell 已经围绕这个边界在工作。",
-      "phase": "2"
-    },
-    {
-      "decision": "Phase 2 的讨论重点先围绕流式聊天的交互与协议边界，而不是重做 runtime 边界。",
-      "rationale": "现有 /api/runtime/health 与 /api/runtime/sessions 已经能支撑下一阶段的对话入口。",
-      "phase": "2"
+      "decision": "Keep the core agent/runtime architecture intact",
+      "rationale": "The repo direction remains a WebUI wrapper around Dexter's existing engine, not a rewrite of the agent or tool stack.",
+      "phase": "03"
     }
   ],
-  "uncommitted_files": [
-    ".gitignore",
-    ".planning/STATE.md",
-    ".planning/config.json",
-    ".planning/HANDOFF.json",
-    ".planning/phases/01-shell-boundary/01-shell-boundary-01-SUMMARY.md",
-    ".planning/phases/01-shell-boundary/01-shell-boundary-02-SUMMARY.md",
-    ".planning/phases/01-shell-boundary/01-shell-boundary-03-SUMMARY.md",
-    "bun.lock",
-    "components.json",
-    "next-env.d.ts",
-    "next.config.mjs",
-    "postcss.config.mjs",
-    "package.json",
-    "src/app/api/runtime/health/route.ts",
-    "src/app/api/runtime/sessions/route.ts",
-    "src/app/globals.css",
-    "src/app/layout.tsx",
-    "src/app/page.tsx",
-    "src/components/ui/badge.tsx",
-    "src/components/ui/button.tsx",
-    "src/components/ui/card.tsx",
-    "src/components/ui/separator.tsx",
-    "src/components/ui/textarea.tsx",
-    "src/components/workspace-shell.tsx",
-    "src/utils/config.ts",
-    "src/utils/in-memory-chat-history.ts",
-    "src/webui/compatibility.test.ts",
-    "src/webui/runtime-adapter.test.ts",
-    "src/webui/runtime/adapter.ts",
-    "src/webui/runtime/health.ts",
-    "src/webui/runtime/session.ts",
-    "src/webui/runtime/types.ts",
-    "src/webui/server/index.ts",
-    "src/webui/server/routes.ts",
-    "tailwind.config.ts",
-    "tsconfig.json"
-  ],
-  "next_action": "先让用户从 Phase 2 灰区中选一个优先讨论项，然后根据选择生成 Phase 2 CONTEXT.md，再进入 plan-phase。",
-  "context_notes": "Phase 1 已完成，Phase 2 仍停留在讨论收敛阶段。子代理已经识别出 5 个关键灰区：传输协议、会话归属、历史写入责任、API 放置位置和事件展示粒度。最稳妥的下一步是先定协议和会话模型，再决定前端如何消费事件。"
+  "uncommitted_files": [],
+  "next_action": "Start with Phase 03 plan 03-01: render tool calls and approval flow in the browser UI.",
+  "context_notes": "Phase 02 is complete and verified. The workspace is clean and ready to begin transparency-focused UI work for tools, approvals, and run controls."
 }
