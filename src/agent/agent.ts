@@ -304,9 +304,9 @@ export class Agent {
       signal: this.signal,
     })) {
       accumulated = accumulated ? accumulated.concat(chunk) : chunk;
-      const { charDelta, mode } = inspectChunkContent(chunk);
+      const { charDelta, mode, textDelta } = inspectChunkContent(chunk);
       if (charDelta > 0 || mode !== 'responding') {
-        yield { type: 'stream_progress', charDelta, mode };
+        yield { type: 'stream_progress', charDelta, mode, textDelta };
       }
     }
 
@@ -648,10 +648,10 @@ const MODE_PRIORITY: Record<StreamMode, number> = {
  * "advanced" mode the chunk contains. LangChain content can be a plain string
  * (most providers) or an array of typed parts (Anthropic).
  */
-function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: StreamMode } {
+function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: StreamMode; textDelta?: string } {
   const content = chunk.content;
   if (typeof content === 'string') {
-    return { charDelta: content.length, mode: 'responding' };
+    return { charDelta: content.length, mode: 'responding', textDelta: content };
   }
   if (!Array.isArray(content)) {
     return { charDelta: 0, mode: 'responding' };
@@ -659,12 +659,16 @@ function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: 
 
   let charDelta = 0;
   let mode: StreamMode = 'responding';
+  const textParts: string[] = [];
   for (const part of content) {
     if (!part || typeof part !== 'object') continue;
     const partType = (part as { type?: string }).type;
     if (partType === 'text') {
       const text = (part as { text?: string }).text;
-      if (typeof text === 'string') charDelta += text.length;
+      if (typeof text === 'string') {
+        charDelta += text.length;
+        textParts.push(text);
+      }
       if (MODE_PRIORITY.responding > MODE_PRIORITY[mode]) mode = 'responding';
     } else if (partType === 'thinking' || partType === 'redacted_thinking') {
       const thinkingText = (part as { thinking?: string }).thinking;
@@ -676,5 +680,5 @@ function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: 
       if (MODE_PRIORITY['tool-input'] > MODE_PRIORITY[mode]) mode = 'tool-input';
     }
   }
-  return { charDelta, mode };
+  return textParts.length > 0 ? { charDelta, mode, textDelta: textParts.join('') } : { charDelta, mode };
 }

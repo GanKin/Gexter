@@ -88,6 +88,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
                     <span>{message.thinkingMessage ?? '正在思考...'}</span>
                   </div>
+                ) : message.content.length > 0 ? (
+                  <div className="space-y-2">
+                    <div>{message.content}</div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                      <span>正在生成回复...</span>
+                    </div>
+                  </div>
                 ) : hasTools ? (
                   <div className="space-y-3">
                     <div className="text-muted-foreground">Dexter 正在处理工具调用...</div>

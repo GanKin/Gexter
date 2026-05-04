@@ -203,6 +203,7 @@ export interface StreamProgressEvent {
   type: 'stream_progress';
   charDelta: number;
   mode: StreamMode;
+  textDelta?: string;
   [key: string]: unknown;
 }
 

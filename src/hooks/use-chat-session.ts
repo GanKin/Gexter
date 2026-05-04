@@ -178,6 +178,10 @@ export function useChatSession() {
       setMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
+          content:
+            event.mode === 'responding' && typeof event.textDelta === 'string'
+              ? `${message.content}${event.textDelta}`
+              : message.content,
           thinking: event.mode !== 'responding',
           thinkingMessage:
             event.mode === 'requesting'
