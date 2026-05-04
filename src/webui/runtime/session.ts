@@ -11,6 +11,7 @@ export function createWebRuntimeSession(model = 'gpt-5.4'): WebRuntimeSession {
     createdAt: new Date().toISOString(),
     history: new InMemoryChatHistory(model),
     approvedTools: new Set<string>(),
+    pendingApproval: null,
     status: 'idle',
   };
 

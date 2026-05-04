@@ -5,6 +5,7 @@ import { RefreshCw, Sparkles } from 'lucide-react';
 
 import { ChatInput } from '@/components/chat-input';
 import { ChatMessage } from '@/components/chat-message';
+import { ModelSelector } from '@/components/model-selector';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +18,17 @@ type RuntimeStatus = 'Checking' | 'Connected' | 'Offline';
 export function WorkspaceShell() {
   const [status, setStatus] = useState<RuntimeStatus>('Checking');
   const [health, setHealth] = useState<RuntimeHealth | null>(null);
-  const { messages, isStreaming, sessionId, sendQuery, error } = useChatSession();
+  const {
+    messages,
+    isStreaming,
+    sessionId,
+    currentModel,
+    changeModel,
+    sendQuery,
+    approveTool,
+    abortSession,
+    error,
+  } = useChatSession();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadHealth = async () => {
@@ -46,7 +57,7 @@ export function WorkspaceShell() {
   return (
     <main className="min-h-screen p-4 md:p-6">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-[1440px] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="overflow-hidden border-border/80 bg-card/90 backdrop-blur">
+        <Card className="overflow-visible border-border/80 bg-card/90 backdrop-blur">
           <CardHeader className="gap-4 border-b border-border/80 bg-gradient-to-br from-primary/8 via-transparent to-accent/20">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
@@ -84,10 +95,7 @@ export function WorkspaceShell() {
                 <p className="mt-1 font-medium">{health?.mode ?? 'webui'}</p>
               </div>
               <Separator />
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Model</p>
-                <p className="mt-1 font-medium">{health?.model ?? 'Checking…'}</p>
-              </div>
+              <ModelSelector currentModel={currentModel} onModelChange={changeModel} />
             </div>
 
             <div className="grid gap-3 rounded-xl border border-border bg-background/70 p-4">
@@ -100,7 +108,7 @@ export function WorkspaceShell() {
               <Separator />
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Model</p>
-                <p className="mt-1 text-sm font-medium">{health?.model ?? 'gpt-5.4'}</p>
+                <p className="mt-1 text-sm font-medium">{currentModel}</p>
               </div>
             </div>
           </CardContent>
@@ -142,14 +150,19 @@ export function WorkspaceShell() {
                 ) : (
                   <div className="flex flex-col gap-4">
                     {messages.map((message) => (
-                      <ChatMessage key={message.id} message={message} />
+                      <ChatMessage
+                        key={message.id}
+                        message={message}
+                        sessionId={sessionId}
+                        approveTool={approveTool}
+                      />
                     ))}
                   </div>
                 )}
                 <div ref={bottomRef} />
               </div>
 
-              <ChatInput onSend={sendQuery} disabled={isStreaming} />
+              <ChatInput onSend={sendQuery} onAbort={abortSession} disabled={isStreaming} />
             </div>
           </Card>
         </section>

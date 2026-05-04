@@ -1,53 +1,100 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-04T09:39:41.011Z",
+  "timestamp": "2026-05-04T14:28:23.147Z",
   "phase": "03",
-  "phase_name": "run transparency",
+  "phase_name": "run-transparency",
   "phase_dir": ".planning/phases/03-run-transparency",
-  "plan": 1,
-  "task": 0,
+  "plan": 3,
+  "task": 3,
   "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
     {
       "id": 1,
-      "name": "Phase 02 streaming chat completed",
+      "name": "渲染工具调用详情和审批流",
       "status": "done",
-      "commit": "bfdf1d8"
-    }
-  ],
-  "remaining_tasks": [
-    {
-      "id": 1,
-      "name": "03-01: 渲染工具调用和审批流",
-      "status": "not_started"
+      "commit": null
     },
     {
       "id": 2,
-      "name": "03-02: 加入停止、重试与继续控制",
-      "status": "not_started"
+      "name": "停止、重试与继续控制",
+      "status": "done",
+      "commit": null
     },
     {
       "id": 3,
-      "name": "03-03: 接入模型 / provider 选择器",
-      "status": "not_started"
+      "name": "模型 / provider 选择器",
+      "status": "done",
+      "commit": null
     }
   ],
-  "blockers": [],
-  "human_actions_pending": [],
+  "remaining_tasks": [],
+  "blockers": [
+    {
+      "description": "Phase 03 需要浏览器里的人工验收，确认工具详情展开、审批卡片闭环、Stop 流程和模型切换的真实交互。",
+      "type": "human_action",
+      "workaround": "代码层面已通过 typecheck 和测试；等待人工在浏览器里确认视觉与实时行为。"
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "在浏览器里触发一次普通工具调用并展开详情",
+      "context": "确认参数、返回值预览和耗时在 UI 中可见，错误调用样式正确。",
+      "blocking": true
+    },
+    {
+      "action": "在浏览器里触发一次需要审批的敏感工具调用并操作审批卡片",
+      "context": "确认允许 / 本次会话允许 / 拒绝 三个按钮在真实流式场景中工作正常。",
+      "blocking": true
+    },
+    {
+      "action": "在浏览器里点击 Stop，然后切换模型并发送新消息",
+      "context": "确认中止标记、输入恢复和下一轮请求模型更新都按预期工作。",
+      "blocking": true
+    }
+  ],
   "decisions": [
     {
-      "decision": "Phase 03 should build directly on the completed streaming chat surface",
-      "rationale": "The browser chat transport and message rendering are already in place, so the next phase can focus on observability and control without reworking transport plumbing.",
+      "decision": "工具透明度通过独立的详情按钮展开，而不是直接点击 Badge 本身",
+      "rationale": "保持 Badge 作为状态展示元素，详情展开逻辑更清晰，也更容易容纳参数、返回值和耗时。",
       "phase": "03"
     },
     {
-      "decision": "Keep the core agent/runtime architecture intact",
-      "rationale": "The repo direction remains a WebUI wrapper around Dexter's existing engine, not a rewrite of the agent or tool stack.",
+      "decision": "审批请求先在 SSE 中发出 pending 事件，再由 POST /approve 解除阻塞",
+      "rationale": "让前端能在真实等待期间显示审批卡片，同时保留服务端 Promise 阻塞语义。",
+      "phase": "03"
+    },
+    {
+      "decision": "模型切换按会话级别 PATCH 更新 session.model，而不是重建 session",
+      "rationale": "保证聊天历史连续，且下一轮请求自然带上新模型。",
       "phase": "03"
     }
   ],
-  "uncommitted_files": [],
-  "next_action": "Start with Phase 03 plan 03-01: render tool calls and approval flow in the browser UI.",
-  "context_notes": "Phase 02 is complete and verified. The workspace is clean and ready to begin transparency-focused UI work for tools, approvals, and run controls."
+  "uncommitted_files": [
+    ".planning/STATE.md",
+    ".planning/HANDOFF.json",
+    ".planning/phases/03-run-transparency/03-HUMAN-UAT.md",
+    ".planning/phases/03-run-transparency/03-VERIFICATION.md",
+    "src/agent/tool-executor.ts",
+    "src/agent/types.ts",
+    "src/app/api/runtime/sessions/[id]/abort/route.ts",
+    "src/app/api/runtime/sessions/[id]/approve/route.ts",
+    "src/app/api/runtime/sessions/[id]/chat/route.ts",
+    "src/app/api/runtime/sessions/[id]/model/route.ts",
+    "src/app/api/runtime/sessions/route.ts",
+    "src/components/chat-input.tsx",
+    "src/components/chat-message.tsx",
+    "src/components/model-selector.tsx",
+    "src/components/ui/button.tsx",
+    "src/components/workspace-shell.tsx",
+    "src/controllers/agent-runner.ts",
+    "src/hooks/use-chat-session.ts",
+    "src/hooks/use-sse-stream.ts",
+    "src/webui/runtime/adapter.ts",
+    "src/webui/runtime/session.ts",
+    "src/webui/runtime/types.ts",
+    "src/webui/sse-chat.test.ts"
+  ],
+  "next_action": "打开浏览器验证 Phase 03 的三项人工确认，并在通过后继续收尾 Phase 03。",
+  "context_notes": "Phase 03 的代码实现已完成并通过 typecheck/test；当前没有技术阻塞，唯一剩余的是浏览器真实交互验证。Verifier 给出的唯一差异是工具详情使用“查看详情”按钮展开，而不是直接点 Badge。"
 }

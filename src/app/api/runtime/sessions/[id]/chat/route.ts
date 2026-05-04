@@ -1,6 +1,6 @@
 import { runWebSession } from '@/webui/runtime/adapter';
 import { getSession } from '@/webui/runtime/registry';
-import { PHASE2_EVENT_TYPES, type StreamableAgentEvent } from '@/webui/runtime/types';
+import { STREAMABLE_EVENT_TYPES, type StreamableAgentEvent } from '@/webui/runtime/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,17 +54,20 @@ export async function POST(request: Request, { params }: ChatRouteContext) {
         try {
           await runWebSession(session, {
             query,
+            config: { model: session.model },
             onEvent: (event) => {
-              if (PHASE2_EVENT_TYPES.has(event.event.type as StreamableAgentEvent['type'])) {
+              if (STREAMABLE_EVENT_TYPES.has(event.event.type as StreamableAgentEvent['type'])) {
                 sendEvent(event.event as StreamableAgentEvent);
               }
             },
           });
         } catch (error) {
-          sendEvent({
-            type: 'error',
-            message: isErrorMessage(error),
-          });
+          if (!(error instanceof Error && error.name === 'AbortError')) {
+            sendEvent({
+              type: 'error',
+              message: isErrorMessage(error),
+            });
+          }
         } finally {
           controller.close();
         }

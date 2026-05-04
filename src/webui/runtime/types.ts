@@ -1,6 +1,9 @@
 import type {
   AgentConfig,
+  ApprovalDecision,
   DoneEvent,
+  ToolApprovalEvent,
+  ToolDeniedEvent,
   StreamProgressEvent,
   ThinkingEvent,
   ToolEndEvent,
@@ -18,7 +21,7 @@ export type RuntimeHealth = {
   gatewayCompatible: true;
 };
 
-export type WebSessionStatus = 'idle' | 'running' | 'complete' | 'error';
+export type WebSessionStatus = 'idle' | 'running' | 'complete' | 'aborted' | 'error';
 
 export type WebRuntimeSession = {
   id: string;
@@ -26,6 +29,15 @@ export type WebRuntimeSession = {
   createdAt: string;
   history: InMemoryChatHistory;
   approvedTools: Set<string>;
+  pendingApproval:
+    | {
+        resolve: (decision: ApprovalDecision) => void;
+        requestId: string;
+        tool: string;
+        args: Record<string, unknown>;
+      }
+    | null;
+  abortController?: AbortController;
   status: WebSessionStatus;
 };
 
@@ -57,13 +69,17 @@ export type StreamableAgentEvent =
   | ToolStartEvent
   | ToolEndEvent
   | ToolErrorEvent
+  | ToolApprovalEvent
+  | ToolDeniedEvent
   | DoneEvent;
 
-export const PHASE2_EVENT_TYPES = new Set<StreamableAgentEvent['type']>([
+export const STREAMABLE_EVENT_TYPES = new Set<StreamableAgentEvent['type']>([
   'thinking',
   'stream_progress',
   'tool_start',
   'tool_end',
   'tool_error',
+  'tool_approval',
+  'tool_denied',
   'done',
 ]);

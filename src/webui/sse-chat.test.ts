@@ -54,13 +54,23 @@ describe('runtime sse chat endpoint', () => {
     expect(response.status).toBe(404);
   });
 
-  test('filters events to PHASE2_EVENT_TYPES only', async () => {
+  test('filters events to STREAMABLE_EVENT_TYPES only', async () => {
     const session = createTrackedSession();
 
     runWebSessionImpl = async (_session, options) => {
       await options.onEvent?.({
         sessionId: session.id,
         event: { type: 'thinking', message: 'thinking' },
+      });
+      await options.onEvent?.({
+        sessionId: session.id,
+        event: {
+          type: 'tool_approval',
+          requestId: 'req-1',
+          tool: 'write_file',
+          args: {},
+          approved: 'pending',
+        },
       });
       await options.onEvent?.({
         sessionId: session.id,
@@ -103,10 +113,10 @@ describe('runtime sse chat endpoint', () => {
     const events = parseSseEvents(await response.text());
     const types = events.map((event) => event.type);
 
-    expect(types).toEqual(['thinking', 'tool_start', 'done']);
+    expect(types).toEqual(['thinking', 'tool_approval', 'tool_start', 'done']);
     expect(types).not.toContain('tool_limit');
     expect(types).not.toContain('queue_drain');
-    expect(types.every((type) => ['thinking', 'stream_progress', 'tool_start', 'tool_end', 'tool_error', 'done'].includes(String(type)))).toBe(true);
+    expect(types.every((type) => ['thinking', 'stream_progress', 'tool_start', 'tool_end', 'tool_error', 'tool_approval', 'tool_denied', 'done'].includes(String(type)))).toBe(true);
   });
 
   test('returns correct SSE headers', async () => {

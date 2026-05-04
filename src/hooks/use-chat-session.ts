@@ -2,7 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { DoneEvent, StreamProgressEvent, ThinkingEvent, ToolEndEvent, ToolErrorEvent, ToolStartEvent } from '@/agent/types';
+import type {
+  ApprovalDecision,
+  DoneEvent,
+  StreamProgressEvent,
+  ThinkingEvent,
+  ToolApprovalEvent,
+  ToolDeniedEvent,
+  ToolEndEvent,
+  ToolErrorEvent,
+  ToolStartEvent,
+} from '@/agent/types';
 
 import { consumeSSEStream, type ChatMessage, type SSEEvent, type ToolCallInfo } from '@/hooks/use-sse-stream';
 
@@ -83,6 +93,14 @@ function updateLatestToolCall(
   return toolCalls;
 }
 
+function isToolApprovalEvent(event: SSEEvent): event is ToolApprovalEvent {
+  return event.type === 'tool_approval';
+}
+
+function isToolDeniedEvent(event: SSEEvent): event is ToolDeniedEvent {
+  return event.type === 'tool_denied';
+}
+
 function mapToolCalls(toolCalls: DoneEvent['toolCalls']): ToolCallInfo[] {
   return toolCalls.map((call) => ({
     tool: call.tool,
@@ -121,8 +139,11 @@ export function useChatSession() {
   const [sessionId, setSessionId] = useState<string | null>(() => createInitialSessionId());
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentModel, setCurrentModel] = useState('gpt-5.4');
   const sessionIdRef = useRef<string | null>(sessionId);
   const streamingRef = useRef(false);
+  const currentModelRef = useRef(currentModel);
+  const modelOverrideRef = useRef(false);
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
@@ -132,19 +153,52 @@ export function useChatSession() {
     streamingRef.current = isStreaming;
   }, [isStreaming]);
 
+  useEffect(() => {
+    currentModelRef.current = currentModel;
+  }, [currentModel]);
+
+  useEffect(() => {
+    const loadCurrentModel = async () => {
+      try {
+        const response = await fetch('/api/runtime/health');
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as { model?: unknown };
+        if (!modelOverrideRef.current && typeof data.model === 'string' && data.model.length > 0) {
+          setCurrentModel(data.model);
+        }
+      } catch {
+        // Ignore health failures; fallback to the default model until a session is created.
+      }
+    };
+
+    void loadCurrentModel();
+  }, []);
+
   const createNewSession = async (): Promise<string> => {
-    const response = await fetch('/api/runtime/sessions', { method: 'POST' });
+    const response = await fetch('/api/runtime/sessions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ model: currentModelRef.current }),
+    });
     if (!response.ok) {
       throw new Error(`Session creation failed: ${response.status}`);
     }
 
-    const data = (await response.json()) as { sessionId?: unknown };
+    const data = (await response.json()) as { sessionId?: unknown; model?: unknown };
     if (typeof data.sessionId !== 'string' || data.sessionId.length === 0) {
       throw new Error('Session response did not include a sessionId');
     }
 
     sessionIdRef.current = data.sessionId;
     setSessionId(data.sessionId);
+    if (typeof data.model === 'string' && data.model.length > 0) {
+      setCurrentModel(data.model);
+    }
     persistSessionId(data.sessionId);
     return data.sessionId;
   };
@@ -160,6 +214,62 @@ export function useChatSession() {
   const createSession = async (): Promise<void> => {
     setError(null);
     await createNewSession();
+  };
+
+  const changeModel = async (model: string, provider: string): Promise<void> => {
+    modelOverrideRef.current = true;
+    currentModelRef.current = model;
+    setCurrentModel(model);
+
+    if (!sessionIdRef.current) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/runtime/sessions/${sessionIdRef.current}/model`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model, provider }),
+      });
+    } catch {
+      // Keep the optimistic local model selection even if the PATCH fails.
+    }
+  };
+
+  const approveTool = async (
+    sessionIdValue: string,
+    requestId: string,
+    decision: ApprovalDecision,
+  ): Promise<void> => {
+    if (!sessionIdValue) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/runtime/sessions/${sessionIdValue}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requestId, decision }),
+      });
+    } catch {
+      // Approval is best-effort; the pending card will stay visible if the request fails.
+    }
+  };
+
+  const abortSession = async (): Promise<void> => {
+    if (!sessionIdRef.current || !streamingRef.current) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/runtime/sessions/${sessionIdRef.current}/abort`, { method: 'POST' });
+    } catch {
+      // Abort is best-effort. The stream will settle even if the request fails.
+    }
   };
 
   const handleEvent = (event: SSEEvent) => {
@@ -208,6 +318,7 @@ export function useChatSession() {
               tool: event.tool,
               status: 'running',
               args: event.args,
+              startTime: Date.now(),
             },
           ],
         })),
@@ -225,6 +336,12 @@ export function useChatSession() {
             ...toolCall,
             status: 'done',
             result: event.result,
+            duration:
+              typeof event.duration === 'number'
+                ? event.duration
+                : toolCall.startTime
+                  ? Date.now() - toolCall.startTime
+                  : undefined,
           })),
         })),
       );
@@ -241,8 +358,52 @@ export function useChatSession() {
             ...toolCall,
             status: 'error',
             error: event.error,
+            duration: toolCall.startTime ? Date.now() - toolCall.startTime : undefined,
           })),
         })),
+      );
+      return;
+    }
+
+    if (isToolApprovalEvent(event)) {
+      setMessages((current) =>
+        replaceAssistantMessage(current, (message) => ({
+          ...message,
+          approvalRequest: {
+            id: event.requestId,
+            tool: event.tool,
+            args: event.args,
+            status:
+              event.approved === 'pending'
+                ? 'pending'
+                : event.approved === 'deny'
+                  ? 'denied'
+                  : 'approved',
+            decision: event.approved === 'pending' ? undefined : event.approved,
+          },
+          thinking: false,
+          thinkingMessage: null,
+        })),
+      );
+      return;
+    }
+
+    if (isToolDeniedEvent(event)) {
+      setMessages((current) =>
+        replaceAssistantMessage(current, (message) => {
+          if (message.approvalRequest?.id !== event.requestId) {
+            return message;
+          }
+
+          return {
+            ...message,
+            approvalRequest: {
+              ...message.approvalRequest,
+              status: 'denied',
+              decision: 'deny',
+            },
+          };
+        }),
       );
       return;
     }
@@ -255,7 +416,7 @@ export function useChatSession() {
           status: 'complete',
           thinking: false,
           thinkingMessage: null,
-          toolCalls: mapToolCalls(event.toolCalls),
+          toolCalls: message.toolCalls.length > 0 ? message.toolCalls : mapToolCalls(event.toolCalls),
         })),
       );
       setIsStreaming(false);
@@ -332,7 +493,7 @@ export function useChatSession() {
           setMessages((current) =>
             replaceAssistantMessage(current, (assistant) => ({
               ...assistant,
-              status: assistant.status === 'complete' ? assistant.status : 'complete',
+              status: assistant.status === 'complete' ? assistant.status : 'aborted',
               thinking: false,
               thinkingMessage: null,
             })),
@@ -360,8 +521,12 @@ export function useChatSession() {
     messages,
     isStreaming,
     sessionId,
+    currentModel,
+    changeModel,
     sendQuery,
     createSession,
+    approveTool,
+    abortSession,
     error,
   };
 }

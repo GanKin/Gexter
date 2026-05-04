@@ -48,6 +48,7 @@ export class AgentToolExecutor {
     private readonly concurrencyMap: Map<string, boolean>,
     private readonly signal?: AbortSignal,
     private readonly requestToolApproval?: (request: {
+      requestId: string;
       tool: string;
       args: Record<string, unknown>;
     }) => Promise<ApprovalDecision>,
@@ -131,10 +132,11 @@ export class AgentToolExecutor {
 
     // Approval flow for sensitive tools
     if (this.requiresApproval(toolName) && !this.sessionApprovedTools.has(toolName)) {
-      const decision = (await this.requestToolApproval?.({ tool: toolName, args: toolArgs })) ?? 'deny';
-      yield { type: 'tool_approval', tool: toolName, args: toolArgs, approved: decision };
+      const requestId = globalThis.crypto?.randomUUID?.() ?? `approval-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const decision = (await this.requestToolApproval?.({ requestId, tool: toolName, args: toolArgs })) ?? 'deny';
+      yield { type: 'tool_approval', requestId, tool: toolName, args: toolArgs, approved: decision };
       if (decision === 'deny') {
-        yield { type: 'tool_denied', tool: toolName, args: toolArgs, toolCallId };
+        yield { type: 'tool_denied', requestId, tool: toolName, args: toolArgs, toolCallId };
         return;
       }
       if (decision === 'allow-session') {

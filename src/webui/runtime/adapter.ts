@@ -7,13 +7,55 @@ export async function runWebSession(
   options: RunWebSessionOptions,
 ): Promise<string> {
   session.status = 'running';
+  const abortController = new AbortController();
+  session.abortController = abortController;
+  const emitEvent = options.onEvent;
 
   try {
     const { Agent } = await import('../../agent/agent');
     const agent = await Agent.create({
       maxIterations: 10,
-      sessionApprovedTools: session.approvedTools,
       ...options.config,
+      sessionApprovedTools: session.approvedTools,
+      signal: abortController.signal,
+      requestToolApproval: async (request) => {
+        const { requestId } = request;
+        await emitEvent?.({
+          sessionId: session.id,
+          event: {
+            type: 'tool_approval',
+            requestId,
+            tool: request.tool,
+            args: request.args,
+            approved: 'pending',
+          },
+        });
+        return new Promise((resolve, reject) => {
+          const abortListener = () => {
+            session.pendingApproval = null;
+            const abortError = new Error('Aborted');
+            abortError.name = 'AbortError';
+            reject(abortError);
+          };
+
+          if (abortController.signal.aborted) {
+            abortListener();
+            return;
+          }
+
+          abortController.signal.addEventListener('abort', abortListener, { once: true });
+
+          session.pendingApproval = {
+            resolve: (decision) => {
+              abortController.signal.removeEventListener('abort', abortListener);
+              resolve(decision);
+            },
+            requestId,
+            tool: request.tool,
+            args: request.args,
+          };
+        });
+      },
     });
 
     let answer = '';
@@ -27,7 +69,14 @@ export async function runWebSession(
     session.status = 'complete';
     return answer;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      session.status = 'aborted';
+      return '';
+    }
     session.status = 'error';
     throw error;
+  } finally {
+    session.pendingApproval = null;
+    session.abortController = undefined;
   }
 }

@@ -26,7 +26,9 @@ export class AgentRunnerController {
   private historyValue: HistoryItem[] = [];
   private workingStateValue: WorkingState = { status: 'idle' };
   private errorValue: string | null = null;
-  private pendingApprovalValue: { tool: string; args: Record<string, unknown> } | null = null;
+  private pendingApprovalValue:
+    | { requestId: string; tool: string; args: Record<string, unknown> }
+    | null = null;
   private turnStartMsValue: number | null = null;
   private streamedCharsValue = 0;
   private streamModeValue: StreamMode | null = null;
@@ -59,7 +61,7 @@ export class AgentRunnerController {
     return this.errorValue;
   }
 
-  get pendingApproval(): { tool: string; args: Record<string, unknown> } | null {
+  get pendingApproval(): { requestId: string; tool: string; args: Record<string, unknown> } | null {
     return this.pendingApprovalValue;
   }
 
@@ -198,7 +200,11 @@ export class AgentRunnerController {
     this.streamModeValue = null;
   }
 
-  private requestToolApproval = (request: { tool: string; args: Record<string, unknown> }) => {
+  private requestToolApproval = (request: {
+    requestId: string;
+    tool: string;
+    args: Record<string, unknown>;
+  }) => {
     return new Promise<ApprovalDecision>((resolve) => {
       this.approvalResolve = resolve;
       this.pendingApprovalValue = request;

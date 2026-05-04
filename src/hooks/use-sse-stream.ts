@@ -1,4 +1,6 @@
-export type SSEEvent = Record<string, unknown> & { type: string };
+import type { AgentEvent } from '@/agent/types';
+
+export type SSEEvent = AgentEvent | { type: 'error'; message: string };
 
 export type ToolCallInfo = {
   tool: string;
@@ -6,16 +8,27 @@ export type ToolCallInfo = {
   args?: Record<string, unknown>;
   result?: string;
   error?: string;
+  duration?: number;
+  startTime?: number;
+};
+
+export type ApprovalRequest = {
+  id: string;
+  tool: string;
+  args: Record<string, unknown>;
+  status: 'pending' | 'approved' | 'denied';
+  decision?: 'allow-once' | 'allow-session' | 'deny';
 };
 
 export type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  status: 'streaming' | 'complete';
+  status: 'streaming' | 'complete' | 'aborted';
   toolCalls: ToolCallInfo[];
   thinking: boolean;
   thinkingMessage: string | null;
+  approvalRequest?: ApprovalRequest;
 };
 
 type SSEStreamCallbacks = {

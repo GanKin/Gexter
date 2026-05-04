@@ -51,7 +51,11 @@ export interface AgentConfig {
   /** Group chat context — when set, adds group-specific instructions to system prompt */
   groupContext?: GroupContext;
   /** Called when a tool needs explicit user approval to proceed */
-  requestToolApproval?: (request: { tool: string; args: Record<string, unknown> }) => Promise<ApprovalDecision>;
+  requestToolApproval?: (request: {
+    requestId: string;
+    tool: string;
+    args: Record<string, unknown>;
+  }) => Promise<ApprovalDecision>;
   /** Shared set of tool names that have been session-approved (persists across queries) */
   sessionApprovedTools?: Set<string>;
   /** Enable/disable persistent memory integration for this run */
@@ -145,9 +149,10 @@ export interface ToolLimitEvent {
  */
 export interface ToolApprovalEvent {
   type: 'tool_approval';
+  requestId: string;
   tool: string;
   args: Record<string, unknown>;
-  approved: ApprovalDecision;
+  approved: ApprovalDecision | 'pending';
 }
 
 /**
@@ -155,6 +160,7 @@ export interface ToolApprovalEvent {
  */
 export interface ToolDeniedEvent {
   type: 'tool_denied';
+  requestId: string;
   tool: string;
   args: Record<string, unknown>;
   /** Unique tool_call ID from the AIMessage (for concurrent execution ordering). */
