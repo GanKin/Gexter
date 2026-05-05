@@ -1,0 +1,11 @@
+.git
+.github
+.next
+node_modules
+dist
+coverage
+.turbo
+.dexter
+.env
+.DS_Store
+*.log

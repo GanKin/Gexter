@@ -46,6 +46,8 @@ export interface AgentConfig {
   maxIterations?: number;
   /** Optional API key override supplied by the WebUI. */
   apiKey?: string;
+  /** Optional base URL override supplied by the WebUI. */
+  baseUrl?: string;
   /** AbortSignal for cancelling agent execution */
   signal?: AbortSignal;
   /** Delivery channel (e.g., 'whatsapp', 'cli') — affects response formatting */

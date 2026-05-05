@@ -20,6 +20,7 @@ type CreateSessionBody = {
   model?: unknown;
   provider?: unknown;
   apiKey?: unknown;
+  baseUrl?: unknown;
   history?: unknown;
 };
 
@@ -36,12 +37,13 @@ export async function POST(request: Request) {
     ? body.provider.trim()
     : undefined;
   const apiKey = typeof body?.apiKey === 'string' && body.apiKey.trim().length > 0 ? body.apiKey.trim() : undefined;
+  const baseUrl = typeof body?.baseUrl === 'string' && body.baseUrl.trim().length > 0 ? body.baseUrl.trim() : undefined;
   const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0
     ? body.sessionId.trim()
     : undefined;
 
   const existingSession = sessionId ? getSession(sessionId) : undefined;
-  const session = existingSession ?? createWebRuntimeSession({ sessionId, model, modelProvider, apiKey });
+  const session = existingSession ?? createWebRuntimeSession({ sessionId, model, modelProvider, apiKey, baseUrl });
 
   if (existingSession) {
     if (model) {
@@ -53,6 +55,9 @@ export async function POST(request: Request) {
     }
     if (apiKey) {
       existingSession.apiKey = apiKey;
+    }
+    if (baseUrl) {
+      existingSession.baseUrl = baseUrl;
     }
   }
 

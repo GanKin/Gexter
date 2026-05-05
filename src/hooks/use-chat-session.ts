@@ -14,7 +14,7 @@ import type {
   ToolStartEvent,
 } from '@/agent/types';
 import { resolveProvider } from '@/providers';
-import { getApiKey, loadPreferences, savePreference } from '@/lib/preferences';
+import { getProviderSettings, loadPreferences, savePreference } from '@/lib/preferences';
 import {
   addToIndex,
   getActiveSessionId,
@@ -150,7 +150,18 @@ function buildHistoryPayload(messages: ChatMessage[]): Array<{ role: 'user' | 'a
 }
 
 function createInitialCurrentModel(): string {
-  return loadPreferences().model;
+  const preferences = loadPreferences();
+  const providerModel = preferences.providerSettings[preferences.provider]?.model?.trim();
+  return providerModel || preferences.model;
+}
+
+function getRuntimeConnectionForModel(model: string): { apiKey?: string; baseUrl?: string } {
+  const providerId = resolveProvider(model).id;
+  const settings = getProviderSettings(providerId);
+  return {
+    apiKey: settings.apiKey ?? undefined,
+    baseUrl: settings.baseUrl ?? undefined,
+  };
 }
 
 function createInitialSessionId(): string | null {
@@ -257,7 +268,7 @@ export function useChatSession() {
     model = currentModelRef.current,
   ): Promise<void> => {
     const provider = resolveProvider(model).id;
-    const apiKey = getApiKey(provider) ?? undefined;
+    const { apiKey, baseUrl } = getRuntimeConnectionForModel(model);
 
     const response = await fetch('/api/runtime/sessions', {
       method: 'POST',
@@ -269,6 +280,7 @@ export function useChatSession() {
         model,
         provider,
         apiKey,
+        baseUrl,
         history: buildHistoryPayload(historyMessages),
       }),
     });
@@ -439,7 +451,11 @@ export function useChatSession() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ model, provider }),
+        body: JSON.stringify({
+          model,
+          provider,
+          ...getRuntimeConnectionForModel(model),
+        }),
       });
     } catch {
       // Keep the optimistic local model selection even if the PATCH fails.

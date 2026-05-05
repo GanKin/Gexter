@@ -53,6 +53,7 @@ async function withRetry<T>(fn: () => Promise<T>, provider: string, maxAttempts 
 interface ModelOpts {
   streaming: boolean;
   apiKey?: string;
+  baseUrl?: string;
 }
 
 type ModelFactory = (name: string, opts: ModelOpts) => BaseChatModel;
@@ -71,55 +72,68 @@ function getApiKey(envVar: string, override?: string): string {
 
 // Factories keyed by provider id — prefix routing is handled by resolveProvider()
 const MODEL_FACTORIES: Record<string, ModelFactory> = {
-  anthropic: (name, opts) =>
-    new ChatAnthropic({
+  anthropic: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
+    return new ChatAnthropic({
       model: name,
-      ...opts,
+      ...sharedOpts,
       apiKey: getApiKey('ANTHROPIC_API_KEY', opts.apiKey),
-    }),
-  google: (name, opts) =>
-    new ChatGoogleGenerativeAI({
+      ...(baseUrl ? { anthropicApiUrl: baseUrl } : {}),
+    });
+  },
+  google: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
+    return new ChatGoogleGenerativeAI({
       model: name,
-      ...opts,
+      ...sharedOpts,
       apiKey: getApiKey('GOOGLE_API_KEY', opts.apiKey),
-    }),
-  xai: (name, opts) =>
-    new ChatOpenAI({
+      ...(baseUrl ? { baseUrl } : {}),
+    });
+  },
+  xai: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
+    return new ChatOpenAI({
       model: name,
-      ...opts,
+      ...sharedOpts,
       apiKey: getApiKey('XAI_API_KEY', opts.apiKey),
       configuration: {
-        baseURL: 'https://api.x.ai/v1',
+        baseURL: baseUrl ?? 'https://api.x.ai/v1',
       },
-    }),
-  openrouter: (name, opts) =>
-    new ChatOpenAI({
+    });
+  },
+  openrouter: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
+    return new ChatOpenAI({
       model: name.replace(/^openrouter:/, ''),
-      ...opts,
+      ...sharedOpts,
       apiKey: getApiKey('OPENROUTER_API_KEY', opts.apiKey),
       configuration: {
-        baseURL: 'https://openrouter.ai/api/v1',
+        baseURL: baseUrl ?? 'https://openrouter.ai/api/v1',
       },
-    }),
-  moonshot: (name, opts) =>
-    new ChatOpenAI({
+    });
+  },
+  moonshot: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
+    return new ChatOpenAI({
       model: name,
-      ...opts,
+      ...sharedOpts,
       apiKey: getApiKey('MOONSHOT_API_KEY', opts.apiKey),
       configuration: {
-        baseURL: 'https://api.moonshot.cn/v1',
+        baseURL: baseUrl ?? 'https://api.moonshot.cn/v1',
       },
-    }),
+    });
+  },
   deepseek: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
     // Both deepseek-v4-pro and deepseek-v4-flash support thinking mode.
     // temperature/top_p/presence_penalty/frequency_penalty are ignored in thinking mode.
     const isThinkingModel = name === 'deepseek-v4-pro' || name === 'deepseek-v4-flash';
     return new ChatOpenAI({
       model: name,
-      ...opts,
+      ...sharedOpts,
       apiKey: getApiKey('DEEPSEEK_API_KEY', opts.apiKey),
       configuration: {
-        baseURL: 'https://api.deepseek.com',
+        baseURL: baseUrl ?? 'https://api.deepseek.com',
       },
       ...(isThinkingModel && {
         // reasoning_effort is a top-level param; thinking toggle goes in extra_body
@@ -131,27 +145,33 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
       }),
     });
   },
-  ollama: (name, opts) =>
-    new ChatOllama({
+  ollama: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
+    return new ChatOllama({
       model: name.replace(/^ollama:/, ''),
-      ...opts,
-      ...(process.env.OLLAMA_BASE_URL ? { baseUrl: process.env.OLLAMA_BASE_URL } : {}),
-    }),
+      ...sharedOpts,
+      ...(baseUrl ? { baseUrl } : process.env.OLLAMA_BASE_URL ? { baseUrl: process.env.OLLAMA_BASE_URL } : {}),
+    });
+  },
 };
 
-const DEFAULT_FACTORY: ModelFactory = (name, opts) =>
-  new ChatOpenAI({
+const DEFAULT_FACTORY: ModelFactory = (name, opts) => {
+  const { baseUrl, ...sharedOpts } = opts;
+  return new ChatOpenAI({
     model: name,
-    ...opts,
+    ...sharedOpts,
     apiKey: getApiKey('OPENAI_API_KEY', opts.apiKey),
+    ...(baseUrl ? { configuration: { baseURL: baseUrl } } : {}),
   });
+};
 
 export function getChatModel(
   modelName: string = DEFAULT_MODEL,
   streaming: boolean = false,
   apiKey?: string,
+  baseUrl?: string,
 ): BaseChatModel {
-  const opts: ModelOpts = { streaming, apiKey };
+  const opts: ModelOpts = { streaming, apiKey, baseUrl };
   const provider = resolveProvider(modelName);
   const factory = MODEL_FACTORIES[provider.id] ?? DEFAULT_FACTORY;
   return factory(modelName, opts);
@@ -164,6 +184,7 @@ interface CallLlmOptions {
   tools?: StructuredToolInterface[];
   signal?: AbortSignal;
   apiKey?: string;
+  baseUrl?: string;
 }
 
 export interface LlmResult {
@@ -223,7 +244,7 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
   const { model = DEFAULT_MODEL, systemPrompt, outputSchema, tools, signal } = options;
   const finalSystemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
 
-  const llm = getChatModel(model, false, options.apiKey);
+  const llm = getChatModel(model, false, options.apiKey, options.baseUrl);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
@@ -297,6 +318,7 @@ interface CallLlmWithMessagesOptions {
   tools?: StructuredToolInterface[];
   signal?: AbortSignal;
   apiKey?: string;
+  baseUrl?: string;
 }
 
 /**
@@ -316,7 +338,7 @@ export async function callLlmWithMessages(
 ): Promise<LlmResult> {
   const { model = DEFAULT_MODEL, tools, signal } = options;
 
-  const llm = getChatModel(model, false, options.apiKey);
+  const llm = getChatModel(model, false, options.apiKey, options.baseUrl);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
@@ -359,7 +381,7 @@ export async function* streamLlmWithMessages(
 ): AsyncGenerator<AIMessageChunk, void> {
   const { model = DEFAULT_MODEL, tools, signal } = options;
 
-  const llm = getChatModel(model, true, options.apiKey);
+  const llm = getChatModel(model, true, options.apiKey, options.baseUrl);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;

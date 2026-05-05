@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Check,
   ChevronDown,
@@ -22,6 +22,7 @@ type ChatMessageProps = {
   message: ChatMessageModel;
   sessionId: string | null;
   approveTool: (sessionId: string, requestId: string, decision: ApprovalDecision) => Promise<void>;
+  onEscape?: () => void;
 };
 
 function formatJson(value: unknown): string {
@@ -121,34 +122,41 @@ function ToolDetails({
         ) : null}
       </div>
 
-      {expanded ? (
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">参数</p>
-            <pre className="max-h-[120px] overflow-y-auto rounded-md border border-border/60 bg-background/80 p-3 text-sm font-mono whitespace-pre-wrap break-words">
-              {formatJson(tool.args ?? {})}
-            </pre>
+      <div
+        className={cn(
+          'grid transition-all duration-200 ease-in-out',
+          expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">参数</p>
+              <pre className="max-h-[200px] overflow-y-auto rounded-md border border-border/60 bg-background/80 p-3 text-sm font-mono whitespace-pre-wrap break-words">
+                {formatJson(tool.args ?? {})}
+              </pre>
+            </div>
+
+            {tool.result ? (
+              <div className="space-y-1.5">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">返回值</p>
+                <pre className="max-h-[200px] overflow-y-auto rounded-md border border-border/60 bg-background/80 p-3 text-sm font-mono whitespace-pre-wrap break-words">
+                  {truncateText(tool.result, 200)}
+                </pre>
+              </div>
+            ) : null}
+
+            {tool.error ? (
+              <div className="space-y-1.5">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">错误</p>
+                <pre className="max-h-[200px] overflow-y-auto rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm font-mono whitespace-pre-wrap break-words text-destructive">
+                  {tool.error}
+                </pre>
+              </div>
+            ) : null}
           </div>
-
-          {tool.result ? (
-            <div className="space-y-1.5">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">返回值</p>
-              <pre className="max-h-[120px] overflow-y-auto rounded-md border border-border/60 bg-background/80 p-3 text-sm font-mono whitespace-pre-wrap break-words">
-                {truncateText(tool.result, 200)}
-              </pre>
-            </div>
-          ) : null}
-
-          {tool.error ? (
-            <div className="space-y-1.5">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">错误</p>
-              <pre className="max-h-[120px] overflow-y-auto rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm font-mono whitespace-pre-wrap break-words text-destructive">
-                {tool.error}
-              </pre>
-            </div>
-          ) : null}
         </div>
-      ) : null}
+      </div>
     </Card>
   );
 }
@@ -233,12 +241,29 @@ function ApprovalCard({
   );
 }
 
-export function ChatMessage({ message, sessionId, approveTool }: ChatMessageProps) {
+export function ChatMessage({ message, sessionId, approveTool, onEscape }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const isComplete = message.status === 'complete';
   const isAborted = message.status === 'aborted';
   const hasTools = message.toolCalls.length > 0;
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (!onEscape || expandedTools.size === 0) {
+      return;
+    }
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onEscape();
+        setExpandedTools(new Set());
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [expandedTools.size, onEscape]);
+
   const approvalNode =
     !isUser && message.approvalRequest ? (
       <div className="border-t border-border/60 pt-3">
@@ -294,7 +319,12 @@ export function ChatMessage({ message, sessionId, approveTool }: ChatMessageProp
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className={cn('text-sm leading-relaxed whitespace-pre-wrap break-words', isUser ? 'text-foreground' : 'text-foreground')}>
+            <div
+              className={cn(
+                'text-sm leading-relaxed whitespace-pre-wrap break-words',
+                isUser ? 'text-foreground' : 'text-foreground',
+              )}
+            >
               {isUser ? (
                 message.content
               ) : message.status === 'streaming' ? (

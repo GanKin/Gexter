@@ -43,6 +43,7 @@ export class Agent {
   private readonly systemPrompt: string;
   private readonly signal?: AbortSignal;
   private readonly apiKey?: string;
+  private readonly baseUrl?: string;
   private readonly memoryEnabled: boolean;
   private readonly messageQueue?: MessageQueue;
   private compactionFailures: number = 0;
@@ -67,6 +68,7 @@ export class Agent {
     this.systemPrompt = systemPrompt;
     this.signal = config.signal;
     this.apiKey = config.apiKey;
+    this.baseUrl = config.baseUrl;
     this.memoryEnabled = config.memoryEnabled ?? true;
     this.messageQueue = config.messageQueue;
   }
@@ -305,6 +307,7 @@ export class Agent {
       tools: this.tools,
       signal: this.signal,
       apiKey: this.apiKey,
+      baseUrl: this.baseUrl,
     })) {
       accumulated = accumulated ? accumulated.concat(chunk) : chunk;
       const { charDelta, mode, textDelta } = inspectChunkContent(chunk);
@@ -351,6 +354,7 @@ export class Agent {
       tools: this.tools,
       signal: this.signal,
       apiKey: this.apiKey,
+      baseUrl: this.baseUrl,
     });
     return { response: result.response as AIMessage, usage: result.usage };
   }

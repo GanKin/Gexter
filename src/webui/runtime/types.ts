@@ -28,6 +28,7 @@ export type WebRuntimeSession = {
   model: string;
   modelProvider: string;
   apiKey?: string;
+  baseUrl?: string;
   createdAt: string;
   history: InMemoryChatHistory;
   approvedTools: Set<string>;
@@ -52,6 +53,7 @@ export type WebRuntimeAgentConfig = {
   model?: string;
   modelProvider?: string;
   apiKey?: string;
+  baseUrl?: string;
   maxIterations?: number;
   signal?: AbortSignal;
   requestToolApproval?: AgentConfig['requestToolApproval'];

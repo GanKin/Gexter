@@ -8,31 +8,54 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { PROVIDERS } from '@/providers';
-import { getApiKey, loadPreferences, setApiKey, type ThemePreference } from '@/lib/preferences';
+import {
+  loadPreferences,
+  savePreference,
+  type ProviderConnectionSettings,
+  type ProviderConnectionMap,
+  type ThemePreference,
+} from '@/lib/preferences';
 import { useTheme } from '@/hooks/use-theme';
 
 const KEY_PROVIDER_IDS = ['openai', 'anthropic', 'google', 'xai', 'moonshot', 'deepseek'];
 
+const EMPTY_PROVIDER_SETTINGS: ProviderConnectionSettings = {
+  apiKey: null,
+  baseUrl: null,
+  model: null,
+};
+
 export function SettingsPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const { theme, setTheme } = useTheme();
-  const [apiKeys, setApiKeys] = useState<Record<string, string>>(() => {
+  const [providerSettings, setProviderSettings] = useState<ProviderConnectionMap>(() => {
     const prefs = loadPreferences();
-    return Object.fromEntries(
-      KEY_PROVIDER_IDS.map((providerId) => [providerId, prefs.apiKeys[providerId] ?? '']),
-    ) as Record<string, string>;
+    return prefs.providerSettings;
   });
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      for (const providerId of KEY_PROVIDER_IDS) {
-        setApiKey(providerId, apiKeys[providerId] ?? '');
-      }
+      savePreference('providerSettings', providerSettings);
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [apiKeys]);
+  }, [providerSettings]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   const themeOptions = useMemo(
     () =>
@@ -55,7 +78,7 @@ export function SettingsPanel() {
           <Settings2 className="h-4 w-4" aria-hidden="true" />
           设置
         </button>
-        <CardDescription>主题、模型和 API key 都会保存到本地浏览器。</CardDescription>
+        <CardDescription>主题、Base URL、模型名和 API key 都会保存到本地浏览器。</CardDescription>
       </CardHeader>
 
       {isOpen ? (
@@ -83,47 +106,102 @@ export function SettingsPanel() {
           <Separator />
 
           <section className="space-y-3">
-            <h3 className="text-sm font-medium">API Keys</h3>
+            <h3 className="text-sm font-medium">连接配置</h3>
+            <p className="text-xs text-muted-foreground">
+              为每个 provider 单独填写连接信息，保存后会自动写入本地浏览器。
+            </p>
             <div className="space-y-3">
               {KEY_PROVIDER_IDS.map((providerId) => {
                 const provider = PROVIDERS.find((entry) => entry.id === providerId);
-                const value = apiKeys[providerId] ?? '';
-                const hasKey = value.trim().length > 0 || getApiKey(providerId) !== null;
+                const settings = providerSettings[providerId] ?? EMPTY_PROVIDER_SETTINGS;
+                const hasValue =
+                  Boolean(settings.apiKey?.trim()) ||
+                  Boolean(settings.baseUrl?.trim()) ||
+                  Boolean(settings.model?.trim());
                 const isVisible = visibleKeys[providerId] ?? false;
 
                 return (
-                  <label key={providerId} className="block space-y-1">
-                    <div className="flex items-center justify-between">
+                  <div key={providerId} className="rounded-xl border border-border/70 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="text-xs font-medium text-muted-foreground">{provider?.displayName ?? providerId}</span>
                       <span
                         className={cn(
                           'h-2 w-2 rounded-full',
-                          hasKey ? 'bg-emerald-500' : 'bg-border',
+                          hasValue ? 'bg-emerald-500' : 'bg-border',
                         )}
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type={isVisible ? 'text' : 'password'}
-                        value={value}
-                        onChange={(event) =>
-                          setApiKeys((current) => ({ ...current, [providerId]: event.target.value }))
-                        }
-                        className="h-10 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        placeholder="输入 API key"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setVisibleKeys((current) => ({ ...current, [providerId]: !current[providerId] }))
-                        }
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:bg-accent hover:text-foreground"
-                        aria-label={`${isVisible ? '隐藏' : '显示'} ${provider?.displayName ?? providerId} API key`}
-                      >
-                        {isVisible ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
-                      </button>
+                    <div className="mt-3 space-y-3">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">Base URL</span>
+                        <input
+                          type="text"
+                          value={settings.baseUrl ?? ''}
+                          onChange={(event) =>
+                            setProviderSettings((current) => ({
+                              ...current,
+                              [providerId]: {
+                                ...(current[providerId] ?? EMPTY_PROVIDER_SETTINGS),
+                                baseUrl: event.target.value,
+                              },
+                            }))
+                          }
+                          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          placeholder="输入 Base URL，例如 https://api.openai.com/v1"
+                        />
+                      </label>
+
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">Model</span>
+                        <input
+                          type="text"
+                          value={settings.model ?? ''}
+                          onChange={(event) =>
+                            setProviderSettings((current) => ({
+                              ...current,
+                              [providerId]: {
+                                ...(current[providerId] ?? EMPTY_PROVIDER_SETTINGS),
+                                model: event.target.value,
+                              },
+                            }))
+                          }
+                          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          placeholder="输入模型名称，例如 gpt-4.1-mini"
+                        />
+                      </label>
+
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">API Key</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type={isVisible ? 'text' : 'password'}
+                            value={settings.apiKey ?? ''}
+                            onChange={(event) =>
+                              setProviderSettings((current) => ({
+                                ...current,
+                                [providerId]: {
+                                  ...(current[providerId] ?? EMPTY_PROVIDER_SETTINGS),
+                                  apiKey: event.target.value,
+                                },
+                              }))
+                            }
+                            className="h-10 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            placeholder="输入 API key"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVisibleKeys((current) => ({ ...current, [providerId]: !current[providerId] }))
+                            }
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                            aria-label={`${isVisible ? '隐藏' : '显示'} ${provider?.displayName ?? providerId} API key`}
+                          >
+                            {isVisible ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                          </button>
+                        </div>
+                      </label>
                     </div>
-                  </label>
+                  </div>
                 );
               })}
             </div>
@@ -133,4 +211,3 @@ export function SettingsPanel() {
     </Card>
   );
 }
-

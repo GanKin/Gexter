@@ -7,6 +7,7 @@ export type CreateWebRuntimeSessionOptions = {
   model?: string;
   modelProvider?: string;
   apiKey?: string;
+  baseUrl?: string;
 };
 
 function createSessionId(requestedId?: string): string {
@@ -25,6 +26,7 @@ export function createWebRuntimeSession(options: CreateWebRuntimeSessionOptions 
     model,
     modelProvider: options.modelProvider ?? 'openai',
     apiKey: options.apiKey,
+    baseUrl: options.baseUrl,
     createdAt: new Date().toISOString(),
     history: new InMemoryChatHistory(model),
     approvedTools: new Set<string>(),

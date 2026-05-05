@@ -1,0 +1,18 @@
+services:
+  dexter-webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    volumes:
+      - dexter-data:/app/.dexter
+
+volumes:
+  dexter-data:

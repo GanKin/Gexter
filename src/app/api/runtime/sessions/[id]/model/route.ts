@@ -17,9 +17,9 @@ export async function PATCH(request: Request, { params }: ModelRouteContext) {
     return new Response('Session not found', { status: 404 });
   }
 
-  let body: { model?: unknown; provider?: unknown };
+  let body: { model?: unknown; provider?: unknown; baseUrl?: unknown };
   try {
-    body = (await request.json()) as { model?: unknown; provider?: unknown };
+    body = (await request.json()) as { model?: unknown; provider?: unknown; baseUrl?: unknown };
   } catch {
     return new Response('Invalid JSON body', { status: 400 });
   }
@@ -43,6 +43,9 @@ export async function PATCH(request: Request, { params }: ModelRouteContext) {
   session.model = model;
   session.modelProvider = provider;
   session.history.setModel(model);
+  if (typeof body.baseUrl === 'string' && body.baseUrl.trim().length > 0) {
+    session.baseUrl = body.baseUrl.trim();
+  }
 
   return Response.json({ ok: true, model });
 }

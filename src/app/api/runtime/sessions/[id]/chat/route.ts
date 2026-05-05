@@ -58,6 +58,7 @@ export async function POST(request: Request, { params }: ChatRouteContext) {
             model: session.model,
             modelProvider: session.modelProvider,
             apiKey: session.apiKey,
+            baseUrl: session.baseUrl,
           },
           onEvent: (event) => {
               if (STREAMABLE_EVENT_TYPES.has(event.event.type as StreamableAgentEvent['type'])) {
