@@ -73,7 +73,7 @@ export function SessionList({
         {sessions.length === 0 ? (
           emptyState
         ) : (
-          <div role="listbox" aria-label="会话列表" className="max-h-[240px] space-y-1 overflow-y-auto pr-1">
+          <div className="max-h-[240px] space-y-1 overflow-y-auto pr-1">
             {sessions.map((session) => {
               const isActive = session.sessionId === activeSessionId;
               return (
@@ -88,8 +88,6 @@ export function SessionList({
                 >
                   <button
                     type="button"
-                    role="option"
-                    aria-selected={isActive}
                     onClick={() => onSelectSession(session.sessionId)}
                     onContextMenu={(event) => {
                       event.preventDefault();

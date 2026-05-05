@@ -19,7 +19,7 @@ const DEPRECATED_MODEL_UPGRADES: Record<string, string> = {
 
 interface Config {
   provider?: string;
-  modelId?: string;  // Selected model ID (e.g., "gpt-5.4", "ollama:llama3.1")
+  modelId?: string;  // Selected model ID (e.g., "gpt-5.4", "ollama:llama3.1", "local:llama3.1")
   model?: string;    // Legacy key, kept for migration
   memory?: {
     enabled?: boolean;

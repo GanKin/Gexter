@@ -10,6 +10,9 @@ import { handleWebUiRequest } from './server/routes';
 
 const settingsPath = join(process.cwd(), '.dexter', 'settings.json');
 const backupPath = join(process.cwd(), '.dexter', 'settings.json.test-backup');
+const expectedWebUiModel = process.env.OPENAI_MODEL?.trim() || 'gpt-5.4';
+const expectedWebUiBaseUrl = process.env.OPENAI_BASE_URL?.trim() || undefined;
+const expectedWebUiApiKey = process.env.OPENAI_API_KEY?.trim() || undefined;
 
 function withNoSavedSettings<T>(fn: () => Promise<T> | T): Promise<T> | T {
   const hadSettings = existsSync(settingsPath);
@@ -43,7 +46,9 @@ describe('webui runtime boundary', () => {
     const session = createWebRuntimeSession();
 
     expect(session.id.startsWith('web-')).toBe(true);
-    expect(session.model).toBe('gpt-5.4');
+    expect(session.model).toBe(expectedWebUiModel);
+    expect(session.baseUrl).toBe(expectedWebUiBaseUrl);
+    expect(session.apiKey).toBe(expectedWebUiApiKey);
     expect(session.status).toBe('idle');
     expect(session.history).toBeInstanceOf(InMemoryChatHistory);
     expect(session.approvedTools.size).toBe(0);
@@ -57,7 +62,7 @@ describe('webui runtime boundary', () => {
         ok: true,
         runtime: 'dexter',
         mode: 'webui',
-        model: 'gpt-5.4',
+        model: expectedWebUiModel,
         gatewayCompatible: true,
       });
     });
@@ -72,7 +77,7 @@ describe('webui runtime boundary', () => {
         ok: true,
         runtime: 'dexter',
         mode: 'webui',
-        model: 'gpt-5.4',
+        model: expectedWebUiModel,
         gatewayCompatible: true,
       });
     });
@@ -89,7 +94,7 @@ describe('webui runtime boundary', () => {
       expect(Object.keys(body).sort()).toEqual(['model', 'sessionId', 'status']);
       expect(body.sessionId).toBeDefined();
       expect(String(body.sessionId)).toMatch(/^web-/);
-      expect(body.model).toBe('gpt-5.4');
+      expect(body.model).toBe(expectedWebUiModel);
       expect(body.status).toBe('idle');
     });
   });

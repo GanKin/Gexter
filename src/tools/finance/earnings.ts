@@ -1,8 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { fetchEarnings } from './free-data.js';
 import { formatToolResult } from '../types.js';
-import { TTL_24H } from './utils.js';
 
 const EarningsInputSchema = z.object({
   ticker: z
@@ -16,9 +15,9 @@ export const getEarnings = new DynamicStructuredTool({
     'Fetches the most recent earnings snapshot for a company, including key income statement, balance sheet, and cash flow figures from the 8-K earnings release, plus analyst estimate comparisons (revenue and EPS surprise) when available.',
   schema: EarningsInputSchema,
   func: async (input) => {
-    const ticker = input.ticker.trim().toUpperCase();
-    const { data, url } = await api.get('/earnings', { ticker }, { cacheable: true, ttlMs: TTL_24H });
-    const record = Array.isArray(data?.earnings) ? data.earnings[0] : null;
-    return formatToolResult(record || {}, [url]);
+    const { data, sourceUrls } = await fetchEarnings({
+      ticker: input.ticker.trim().toUpperCase(),
+    });
+    return formatToolResult(data, sourceUrls);
   },
 });

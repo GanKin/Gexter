@@ -153,6 +153,20 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
       ...(baseUrl ? { baseUrl } : process.env.OLLAMA_BASE_URL ? { baseUrl: process.env.OLLAMA_BASE_URL } : {}),
     });
   },
+  local: (name, opts) => {
+    const { baseUrl, ...sharedOpts } = opts;
+    const trimmedApiKey = opts.apiKey?.trim();
+    const shouldClearAuthHeader = !trimmedApiKey;
+    return new ChatOpenAI({
+      model: name.replace(/^local:/, ''),
+      ...sharedOpts,
+      apiKey: trimmedApiKey ?? '',
+      configuration: {
+        ...(baseUrl ? { baseURL: baseUrl } : {}),
+        ...(shouldClearAuthHeader ? { defaultHeaders: { Authorization: null } } : {}),
+      },
+    });
+  },
 };
 
 const DEFAULT_FACTORY: ModelFactory = (name, opts) => {

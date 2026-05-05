@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: ModelRouteContext) {
   const provider = body.provider.trim();
   const validModels = getModelIdsForProvider(provider);
 
-  if (!validModels.includes(model)) {
+  if (validModels.length > 0 && !validModels.includes(model)) {
     return new Response('Invalid model for provider', { status: 400 });
   }
 

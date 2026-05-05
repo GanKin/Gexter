@@ -1,10 +1,10 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { api } from './api.js';
+import { fetchHistoricalStockPrices, fetchStockPriceSnapshot, fetchStockTickers } from './free-data.js';
 import { formatToolResult } from '../types.js';
 
 export const STOCK_PRICE_DESCRIPTION = `
-Fetches current stock price snapshots for equities, including open, high, low, close prices, volume, and market cap. Powered by Financial Datasets.
+Fetches current stock price snapshots for equities, including open, high, low, close prices, volume, and market cap. Powered by free market data providers.
 `.trim();
 
 const StockPriceInputSchema = z.object({
@@ -16,13 +16,11 @@ const StockPriceInputSchema = z.object({
 export const getStockPrice = new DynamicStructuredTool({
   name: 'get_stock_price',
   description:
-    'Fetches the current stock price snapshot for an equity ticker, including open, high, low, close prices, volume, and market cap.',
+    'Fetches the current stock price snapshot for an equity ticker, including open, high, low, close prices, volume, market cap, and 52-week range when available.',
   schema: StockPriceInputSchema,
   func: async (input) => {
-    const ticker = input.ticker.trim().toUpperCase();
-    const params = { ticker };
-    const { data, url } = await api.get('/prices/snapshot/', params);
-    return formatToolResult(data.snapshot || {}, [url]);
+    const { data, sourceUrls } = await fetchStockPriceSnapshot(input.ticker);
+    return formatToolResult(data, sourceUrls);
   },
 });
 
@@ -31,9 +29,13 @@ const StockPricesInputSchema = z.object({
     .string()
     .describe("The stock ticker symbol to fetch historical prices for. For example, 'AAPL' for Apple."),
   interval: z
-    .enum(['day', 'week', 'month', 'year'])
+    .enum(['minute', 'day', 'week', 'month', 'year'])
     .default('day')
     .describe("The time interval for price data. Defaults to 'day'."),
+  interval_multiplier: z
+    .number()
+    .default(1)
+    .describe('Multiplier for the interval. Defaults to 1.'),
   start_date: z.string().describe('Start date in YYYY-MM-DD format. Required.'),
   end_date: z.string().describe('End date in YYYY-MM-DD format. Required.'),
 });
@@ -44,27 +46,37 @@ export const getStockPrices = new DynamicStructuredTool({
     'Retrieves historical price data for a stock over a specified date range, including open, high, low, close prices and volume.',
   schema: StockPricesInputSchema,
   func: async (input) => {
-    const params = {
-      ticker: input.ticker.trim().toUpperCase(),
+    const { data, sourceUrls } = await fetchHistoricalStockPrices({
+      ticker: input.ticker,
       interval: input.interval,
+      interval_multiplier: input.interval_multiplier,
       start_date: input.start_date,
       end_date: input.end_date,
-    };
-    // Cache when the date window is fully closed (OHLCV data is final)
-    const endDate = new Date(input.end_date + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const { data, url } = await api.get('/prices/', params, { cacheable: endDate < today });
-    return formatToolResult(data.prices || [], [url]);
+    });
+    return formatToolResult(data, sourceUrls);
   },
 });
 
 export const getStockTickers = new DynamicStructuredTool({
-  name: 'get_available_stock_tickers',
-  description: 'Retrieves the list of available stock tickers that can be used with the stock price tools.',
-  schema: z.object({}),
-  func: async () => {
-    const { data, url } = await api.get('/prices/snapshot/tickers/', {}, { cacheable: true, ttlMs: 24 * 60 * 60 * 1000 });
-    return formatToolResult(data.tickers || [], [url]);
+  name: 'get_stock_tickers',
+  description: 'Retrieves a list of available stock tickers, and can optionally narrow by ticker prefix or company name.',
+  schema: z.object({
+    query: z.string().optional().describe('Optional ticker prefix or company name to narrow the results.'),
+    market: z.string().optional().describe('Optional market filter, defaults to stocks.'),
+    type: z.string().optional().describe('Optional security type filter, e.g. CS or ETF.'),
+    exchange: z.string().optional().describe('Optional exchange filter, e.g. XNAS.'),
+    active: z.boolean().default(true).optional().describe('Whether to return only active tickers.'),
+    limit: z.number().default(100).optional().describe('Maximum number of tickers to return.'),
+  }),
+  func: async (input) => {
+    const { data, sourceUrls } = await fetchStockTickers({
+      query: input.query,
+      market: input.market,
+      type: input.type,
+      exchange: input.exchange,
+      active: input.active,
+      limit: input.limit,
+    });
+    return formatToolResult(data, sourceUrls);
   },
 });

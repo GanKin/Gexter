@@ -33,6 +33,8 @@ const PROVIDER_MODELS: Record<string, Model[]> = {
     { id: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro' },
     { id: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' },
   ],
+  ollama: [],
+  local: [],
 };
 
 export const PROVIDERS: Provider[] = PROVIDER_DEFS.map((provider) => ({
@@ -55,8 +57,22 @@ export function getDefaultModelForProvider(providerId: string): string | undefin
   return models[0]?.id;
 }
 
+export function normalizeModelIdForProvider(providerId: string, modelId: string): string {
+  const provider = PROVIDER_DEFS.find((entry) => entry.id === providerId);
+  if (!provider || provider.modelPrefix.length === 0) {
+    return modelId.trim();
+  }
+
+  const trimmedModelId = modelId.trim();
+  if (trimmedModelId.startsWith(provider.modelPrefix)) {
+    return trimmedModelId;
+  }
+
+  return `${provider.modelPrefix}${trimmedModelId}`;
+}
+
 export function getModelDisplayName(modelId: string): string {
-  const normalizedId = modelId.replace(/^(ollama|openrouter):/, '');
+  const normalizedId = modelId.replace(/^(ollama|openrouter|local):/, '');
 
   for (const provider of PROVIDERS) {
     const model = provider.models.find((entry) => entry.id === normalizedId || entry.id === modelId);

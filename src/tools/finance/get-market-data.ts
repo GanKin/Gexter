@@ -7,6 +7,7 @@ import { formatToolResult } from '../types.js';
 import { getCurrentDate } from '../../agent/prompts.js';
 import { withTimeout, SUB_TOOL_TIMEOUT_MS } from './utils.js';
 import { MARKET_DATA_FORMATTERS } from './formatters.js';
+import { combineRouterToolResults } from './router-utils.js';
 
 /**
  * Rich description for the get_market_data tool.
@@ -77,7 +78,7 @@ const MARKET_DATA_TOOLS: StructuredToolInterface[] = [
 const MARKET_DATA_TOOL_MAP = new Map(MARKET_DATA_TOOLS.map(t => [t.name, t]));
 
 // Build the router system prompt for market data
-function buildRouterPrompt(): string {
+export function buildRouterPrompt(): string {
   return `You are a market data routing assistant.
 Current date: ${getCurrentDate()}
 
@@ -187,35 +188,7 @@ export function createGetMarketData(model: string): DynamicStructuredTool {
         })
       );
 
-      // 4. Combine results
-      const successfulResults = results.filter((r) => r.error === null);
-      const failedResults = results.filter((r) => r.error !== null);
-
-      // Collect all source URLs
-      const allUrls = results.flatMap((r) => r.sourceUrls);
-
-      // Build combined data structure
-      const combinedData: Record<string, unknown> = {};
-
-      for (const result of successfulResults) {
-        // Use tool name as key, or tool_ticker for multiple calls to same tool
-        const ticker = (result.args as Record<string, unknown>).ticker as string | undefined;
-        const key = ticker ? `${result.tool}_${ticker}` : result.tool;
-        const formatter = MARKET_DATA_FORMATTERS[result.tool];
-        combinedData[key] = formatter
-          ? formatter(result.data, result.args as Record<string, unknown>)
-          : result.data;
-      }
-
-      // Add errors if any
-      if (failedResults.length > 0) {
-        combinedData._errors = failedResults.map((r) => ({
-          tool: r.tool,
-          args: r.args,
-          error: r.error,
-        }));
-      }
-
+      const { combinedData, allUrls } = combineRouterToolResults(results, MARKET_DATA_FORMATTERS);
       return formatToolResult(combinedData, allUrls);
     },
   });

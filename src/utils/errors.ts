@@ -230,6 +230,7 @@ export function formatUserFacingError(raw: string, provider?: string): string {
   const errorType = classifyError(raw);
   const info = parseApiErrorInfo(raw);
   const providerLabel = provider ? `${provider} ` : '';
+  const isLocalProvider = provider?.toLowerCase().includes('local') ?? false;
 
   switch (errorType) {
     case 'context_overflow':
@@ -241,6 +242,9 @@ export function formatUserFacingError(raw: string, provider?: string): string {
       return `${providerLabel}API key has run out of credits or has an insufficient balance. ` +
         'Check your billing dashboard and top up, or switch to a different API key.';
     case 'auth':
+      if (isLocalProvider) {
+        return `${providerLabel}认证失败。请检查 Base URL 是否正确，并确认本地服务是否需要 API key。`;
+      }
       return `${providerLabel}API key is invalid or expired. ` +
         'Check that your API key is correct in your environment variables.';
     case 'timeout':

@@ -94,7 +94,7 @@ export class ModelSelectionController {
     }
 
     this.pendingProviderValue = providerId;
-    if (providerId === 'openrouter') {
+    if (providerId === 'openrouter' || providerId === 'local') {
       this.pendingModelsValue = [];
       this.appStateValue = 'model_input';
       this.emitChange();
@@ -126,6 +126,11 @@ export class ModelSelectionController {
 
     if (this.pendingProviderValue === 'ollama') {
       this.completeModelSwitch(this.pendingProviderValue, `ollama:${modelId}`);
+      return;
+    }
+
+    if (this.pendingProviderValue === 'local') {
+      this.completeModelSwitch(this.pendingProviderValue, `local:${modelId}`);
       return;
     }
 

@@ -14,7 +14,7 @@ import type {
   ToolStartEvent,
 } from '@/agent/types';
 import { resolveProvider } from '@/providers';
-import { getProviderSettings, loadPreferences, savePreference } from '@/lib/preferences';
+import { DEFAULT_MODEL, getApiKey, loadPreferences, savePreference } from '@/lib/preferences';
 import {
   addToIndex,
   getActiveSessionId,
@@ -150,18 +150,7 @@ function buildHistoryPayload(messages: ChatMessage[]): Array<{ role: 'user' | 'a
 }
 
 function createInitialCurrentModel(): string {
-  const preferences = loadPreferences();
-  const providerModel = preferences.providerSettings[preferences.provider]?.model?.trim();
-  return providerModel || preferences.model;
-}
-
-function getRuntimeConnectionForModel(model: string): { apiKey?: string; baseUrl?: string } {
-  const providerId = resolveProvider(model).id;
-  const settings = getProviderSettings(providerId);
-  return {
-    apiKey: settings.apiKey ?? undefined,
-    baseUrl: settings.baseUrl ?? undefined,
-  };
+  return DEFAULT_MODEL;
 }
 
 function createInitialSessionId(): string | null {
@@ -211,7 +200,7 @@ export function useChatSession() {
         }
 
         const data = (await response.json()) as { model?: unknown };
-        if (!modelOverrideRef.current && currentModelRef.current === 'gpt-5.4' && typeof data.model === 'string' && data.model.length > 0) {
+        if (!modelOverrideRef.current && currentModelRef.current === DEFAULT_MODEL && typeof data.model === 'string' && data.model.length > 0) {
           setCurrentModel(data.model);
         }
       } catch {
@@ -268,7 +257,7 @@ export function useChatSession() {
     model = currentModelRef.current,
   ): Promise<void> => {
     const provider = resolveProvider(model).id;
-    const { apiKey, baseUrl } = getRuntimeConnectionForModel(model);
+    const apiKey = getApiKey(provider) ?? undefined;
 
     const response = await fetch('/api/runtime/sessions', {
       method: 'POST',
@@ -280,7 +269,6 @@ export function useChatSession() {
         model,
         provider,
         apiKey,
-        baseUrl,
         history: buildHistoryPayload(historyMessages),
       }),
     });
@@ -451,11 +439,7 @@ export function useChatSession() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model,
-          provider,
-          ...getRuntimeConnectionForModel(model),
-        }),
+        body: JSON.stringify({ model, provider }),
       });
     } catch {
       // Keep the optimistic local model selection even if the PATCH fails.
