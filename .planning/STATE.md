@@ -64,6 +64,14 @@ None
 **Last session:** 2026-05-05T06:56:28.968Z
 **Stopped At:** Phase 05 execution complete
 
+## Accumulated Context
+
+### Pending Todos
+
+**1 todo captured**
+
+- `add-get-research-route-tool` — Add get_research meta-tool for routing research queries to sub-tools (analyst reports, SEC analysis, news sentiment)
+
 ## Next Step
 
 开始 Phase 03 的执行，完成工具调用、审批和模型选择相关的剩余工作。
