@@ -66,11 +66,11 @@ export async function runWebSession(
       }
     }
 
-    session.status = 'complete';
+    session.status = 'idle';
     return answer;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      session.status = 'aborted';
+      session.status = 'idle';
       return '';
     }
     session.status = 'error';

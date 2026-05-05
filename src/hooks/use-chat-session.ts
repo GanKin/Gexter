@@ -14,7 +14,7 @@ import type {
   ToolStartEvent,
 } from '@/agent/types';
 import { resolveProvider } from '@/providers';
-import { DEFAULT_MODEL, getApiKey, loadPreferences, savePreference } from '@/lib/preferences';
+import { DEFAULT_MODEL, getApiKey, savePreference } from '@/lib/preferences';
 import {
   addToIndex,
   getActiveSessionId,
@@ -168,6 +168,7 @@ export function useChatSession() {
   const messagesRef = useRef<ChatMessage[]>(messages);
   const streamingRef = useRef(false);
   const currentModelRef = useRef(currentModel);
+  const runtimeDefaultModelRef = useRef<string | null>(null);
   const modelOverrideRef = useRef(false);
   const sessionListRef = useRef<SessionSummary[]>([]);
 
@@ -191,26 +192,6 @@ export function useChatSession() {
     sessionListRef.current = sessionList;
   }, [sessionList]);
 
-  useEffect(() => {
-    const loadPreferencesAndHealth = async () => {
-      try {
-        const response = await fetch('/api/runtime/health');
-        if (!response.ok) {
-          return;
-        }
-
-        const data = (await response.json()) as { model?: unknown };
-        if (!modelOverrideRef.current && currentModelRef.current === DEFAULT_MODEL && typeof data.model === 'string' && data.model.length > 0) {
-          setCurrentModel(data.model);
-        }
-      } catch {
-        // Ignore health failures; fallback to defaults.
-      }
-    };
-
-    void loadPreferencesAndHealth();
-  }, []);
-
   const mutateMessages = (updater: (current: ChatMessage[]) => ChatMessage[]) => {
     setMessages((current) => {
       const next = updater(current);
@@ -225,6 +206,36 @@ export function useChatSession() {
     sessionListRef.current = list;
     return list;
   };
+
+  const fetchRuntimeDefaultModel = async (): Promise<string | null> => {
+    try {
+      const response = await fetch('/api/runtime/health');
+      if (!response.ok) {
+        return runtimeDefaultModelRef.current;
+      }
+
+      const data = (await response.json()) as { model?: unknown };
+      if (typeof data.model === 'string' && data.model.length > 0) {
+        runtimeDefaultModelRef.current = data.model;
+        return data.model;
+      }
+    } catch {
+      // Keep the last known runtime default if the status endpoint is unavailable.
+    }
+
+    return runtimeDefaultModelRef.current;
+  };
+
+  useEffect(() => {
+    const loadPreferencesAndHealth = async () => {
+      const model = await fetchRuntimeDefaultModel();
+      if (model && !modelOverrideRef.current && currentModelRef.current === DEFAULT_MODEL) {
+        setCurrentModel(model);
+      }
+    };
+
+    void loadPreferencesAndHealth();
+  }, []);
 
   const persistSessionSnapshot = async (
     targetSessionId: string,
@@ -281,25 +292,29 @@ export function useChatSession() {
   const createNewSession = async (): Promise<string> => {
     const targetSessionId = `web-${crypto.randomUUID()}`;
     const nextMessages: ChatMessage[] = [];
+    const model = (await fetchRuntimeDefaultModel()) ?? currentModelRef.current;
 
     setError(null);
+    modelOverrideRef.current = false;
+    currentModelRef.current = model;
+    setCurrentModel(model);
     setSessionId(targetSessionId);
     sessionIdRef.current = targetSessionId;
     mutateMessages(() => nextMessages);
     setActiveSessionId(targetSessionId);
-    addToIndex(targetSessionId, '新会话', currentModelRef.current);
+    addToIndex(targetSessionId, '新会话', model);
     updateIndex(targetSessionId, {
       title: '新会话',
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
-      model: currentModelRef.current,
+      model,
       messageCount: 0,
     });
     await saveSession(
       targetSessionId,
-      buildSessionMetadata(targetSessionId, nextMessages, currentModelRef.current),
+      buildSessionMetadata(targetSessionId, nextMessages, model),
     );
-    await ensureRuntimeSession(targetSessionId, nextMessages, currentModelRef.current);
+    await ensureRuntimeSession(targetSessionId, nextMessages, model);
     await loadSessionList();
     return targetSessionId;
   };
@@ -677,7 +692,14 @@ export function useChatSession() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: normalizedQuery }),
+        body: JSON.stringify({
+          query: normalizedQuery,
+          sessionId: activeSessionId,
+          model: currentModelRef.current,
+          provider: resolveProvider(currentModelRef.current).id,
+          apiKey: getApiKey(resolveProvider(currentModelRef.current).id) ?? undefined,
+          history: buildHistoryPayload(currentHistory),
+        }),
       });
 
       if (!response.ok) {

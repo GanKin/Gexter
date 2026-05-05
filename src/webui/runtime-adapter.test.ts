@@ -91,7 +91,7 @@ describe('webui runtime boundary', () => {
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as Record<string, unknown>;
-      expect(Object.keys(body).sort()).toEqual(['model', 'sessionId', 'status']);
+      expect(Object.keys(body).sort()).toEqual(['model', 'provider', 'sessionId', 'status']);
       expect(body.sessionId).toBeDefined();
       expect(String(body.sessionId)).toMatch(/^web-/);
       expect(body.model).toBe(expectedWebUiModel);
@@ -137,7 +137,7 @@ describe('webui runtime boundary', () => {
       });
 
       expect(answer).toBe('final answer');
-      expect(session.status).toBe('complete');
+      expect(session.status).toBe('idle');
       expect(receivedHistory as unknown as InMemoryChatHistory).toBe(session.history);
       expect(receivedConfig).toMatchObject({
         model: 'gpt-4.1-mini',
@@ -148,6 +148,44 @@ describe('webui runtime boundary', () => {
       expect(events[0]?.sessionId).toBe(session.id);
       expect(events[0]?.event.type).toBe('thinking');
       expect(events[1]?.event.type).toBe('done');
+    } finally {
+      agentClass.create = originalCreate;
+    }
+  });
+
+  test('releases a session for follow-up questions after a run completes', async () => {
+    const session = createWebRuntimeSession();
+    const agentClass = Agent as typeof Agent & {
+      create: typeof Agent.create;
+    };
+    const originalCreate = agentClass.create;
+    const queries: string[] = [];
+
+    agentClass.create = async () => ({
+      async *run(query: string) {
+        queries.push(query);
+        yield {
+          type: 'done',
+          answer: `answer ${queries.length}`,
+          toolCalls: [],
+          iterations: 1,
+          totalTime: 5,
+        };
+      },
+    } as never);
+
+    try {
+      const firstAnswer = await runWebSession(session, {
+        query: 'first question',
+      });
+      const secondAnswer = await runWebSession(session, {
+        query: 'follow-up question',
+      });
+
+      expect(firstAnswer).toBe('answer 1');
+      expect(secondAnswer).toBe('answer 2');
+      expect(queries).toEqual(['first question', 'follow-up question']);
+      expect(session.status).toBe('idle');
     } finally {
       agentClass.create = originalCreate;
     }

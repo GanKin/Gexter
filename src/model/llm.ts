@@ -27,21 +27,21 @@ export function getFastModel(modelProvider: string, fallbackModel: string): stri
 }
 
 // Generic retry helper with exponential backoff
-async function withRetry<T>(fn: () => Promise<T>, provider: string, maxAttempts = 3): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, providerLabel: string, maxAttempts = 3): Promise<T> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       const errorType = classifyError(message);
-      logger.error(`[${provider} API] ${errorType} error (attempt ${attempt + 1}/${maxAttempts}): ${message}`);
+      logger.error(`[${providerLabel}] ${errorType} error (attempt ${attempt + 1}/${maxAttempts}): ${message}`);
 
       if (isNonRetryableError(message)) {
-        throw new Error(`[${provider} API] ${message}`);
+        throw new Error(`[${providerLabel}] ${message}`);
       }
 
       if (attempt === maxAttempts - 1) {
-        throw new Error(`[${provider} API] ${message}`);
+        throw new Error(`[${providerLabel}] ${message}`);
       }
       await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
     }

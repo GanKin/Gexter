@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 
 import { getChatModel } from './llm';
 
-describe('getChatModel local provider', () => {
-  test('does not inject a fake auth header when no local api key is configured', () => {
+describe('getChatModel OpenAI-compatible provider', () => {
+  test('does not inject a fake auth header when no compatible api key is configured', () => {
     const model = getChatModel('local:gemma-4-26b-it', false);
     const anyModel = model as unknown as {
       apiKey?: string;
@@ -18,7 +18,7 @@ describe('getChatModel local provider', () => {
     expect(anyModel.clientConfig?.defaultHeaders?.Authorization).toBeNull();
   });
 
-  test('preserves explicit local auth and base url overrides', () => {
+  test('preserves explicit compatible auth and base url overrides', () => {
     const model = getChatModel('local:gemma-4-26b-it', false, 'local-secret', 'http://127.0.0.1:1234/v1');
     const anyModel = model as unknown as {
       apiKey?: string;

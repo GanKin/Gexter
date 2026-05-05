@@ -6,6 +6,11 @@
  */
 
 import chalk from 'chalk';
+import {
+  isMarkdownTableSeparatorLine,
+  parseMarkdownTable,
+  type MarkdownTableAlignment,
+} from './markdown-table-core.js';
 
 // Box-drawing characters
 const BOX = {
@@ -22,6 +27,9 @@ const BOX = {
   cross: '┼',
 };
 
+export type { MarkdownTableAlignment, ParsedMarkdownTable } from './markdown-table-core.js';
+export { isMarkdownTableSeparatorLine, parseMarkdownTable } from './markdown-table-core.js';
+
 /**
  * Check if a string looks like a number (for right-alignment).
  */
@@ -32,62 +40,13 @@ function isNumeric(value: string): boolean {
 }
 
 /**
- * Parse a markdown table into headers and rows.
- */
-export function parseMarkdownTable(tableText: string): { headers: string[]; rows: string[][] } | null {
-  const lines = tableText.trim().split('\n').map(line => line.trim());
-  
-  if (lines.length < 2) return null;
-  
-  // Parse header line
-  const headerLine = lines[0];
-  if (!headerLine.includes('|')) return null;
-  
-  const headers = headerLine
-    .split('|')
-    .map(cell => cell.trim())
-    .filter((_, i, arr) => i > 0 && i < arr.length - 1 || arr.length === 1);
-  
-  // Handle edge case where there's no leading/trailing pipe
-  if (headers.length === 0) {
-    const rawHeaders = headerLine.split('|').map(cell => cell.trim());
-    if (rawHeaders.length > 0) {
-      headers.push(...rawHeaders);
-    }
-  }
-  
-  if (headers.length === 0) return null;
-  
-  // Check for separator line (---|---|---)
-  const separatorLine = lines[1];
-  if (!separatorLine || !/^[\s|:-]+$/.test(separatorLine)) return null;
-  
-  // Parse data rows
-  const rows: string[][] = [];
-  for (let i = 2; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.includes('|')) continue;
-    
-    const cells = line
-      .split('|')
-      .map(cell => cell.trim());
-    
-    // Remove empty first/last cells from pipes at start/end
-    if (cells[0] === '') cells.shift();
-    if (cells[cells.length - 1] === '') cells.pop();
-    
-    if (cells.length > 0) {
-      rows.push(cells);
-    }
-  }
-  
-  return { headers, rows };
-}
-
-/**
  * Render a parsed table as a Unicode box-drawing table.
  */
-export function renderBoxTable(headers: string[], rows: string[][]): string {
+export function renderBoxTable(
+  headers: string[],
+  rows: string[][],
+  alignments: MarkdownTableAlignment[] = [],
+): string {
   // Calculate column widths
   const colWidths: number[] = headers.map(h => h.length);
   
@@ -99,22 +58,33 @@ export function renderBoxTable(headers: string[], rows: string[][]): string {
     }
   }
   
-  // Determine alignment for each column (right for numeric, left for text)
-  const alignRight: boolean[] = headers.map((_, colIndex) => {
-    // Check if most values in this column are numeric
+  // Determine alignment for each column.
+  const align: MarkdownTableAlignment[] = headers.map((_, colIndex) => {
+    const explicit = alignments[colIndex];
+    if (explicit) {
+      return explicit;
+    }
+
+    // Fallback: right-align mostly numeric columns.
     let numericCount = 0;
     for (const row of rows) {
       if (row[colIndex] && isNumeric(row[colIndex])) {
-        numericCount++;
+        numericCount += 1;
       }
     }
-    return numericCount > rows.length / 2;
+    return numericCount > rows.length / 2 ? 'right' : 'left';
   });
   
   // Helper to pad a cell
-  const padCell = (value: string, width: number, rightAlign: boolean): string => {
-    if (rightAlign) {
+  const padCell = (value: string, width: number, alignment: MarkdownTableAlignment): string => {
+    if (alignment === 'right') {
       return value.padStart(width);
+    }
+    if (alignment === 'center') {
+      const totalPadding = Math.max(width - value.length, 0);
+      const leftPadding = Math.floor(totalPadding / 2);
+      const rightPadding = totalPadding - leftPadding;
+      return `${' '.repeat(leftPadding)}${value}${' '.repeat(rightPadding)}`;
     }
     return value.padEnd(width);
   };
@@ -130,7 +100,7 @@ export function renderBoxTable(headers: string[], rows: string[][]): string {
   
   // Header row
   const headerRow = BOX.vertical + 
-    headers.map((h, i) => ` ${padCell(h, colWidths[i], false)} `).join(BOX.vertical) + 
+    headers.map((h, i) => ` ${padCell(h, colWidths[i], align[i] ?? 'left')} `).join(BOX.vertical) + 
     BOX.vertical;
   lines.push(headerRow);
   
@@ -145,7 +115,7 @@ export function renderBoxTable(headers: string[], rows: string[][]): string {
     const dataRow = BOX.vertical + 
       colWidths.map((w, i) => {
         const value = row[i] || '';
-        return ` ${padCell(value, w, alignRight[i])} `;
+        return ` ${padCell(value, w, align[i] ?? 'left')} `;
       }).join(BOX.vertical) + 
       BOX.vertical;
     lines.push(dataRow);
@@ -170,41 +140,41 @@ export function transformMarkdownTables(content: string): string {
     .split('\n')
     .map(line => line.trimEnd())
     .join('\n');
-  
-  // Regex to match markdown tables:
-  // - Starts with a line containing pipes
-  // - Followed by a separator line (---|---|---)
-  // - Followed by zero or more data rows with pipes
-  // IMPORTANT: Use [ \t] instead of \s in separator to avoid matching newlines
-  const tableRegex = /^(\|[^\n]+\|\n\|[-:| \t]+\|(?:\n\|[^\n]+\|)*)/gm;
-  
-  // Also match tables without leading/trailing pipes on each line
-  const tableRegex2 = /^([^\n|]*\|[^\n]+\n[-:| \t]+(?:\n[^\n|]*\|[^\n]+)*)/gm;
-  
-  let result = normalized;
-  
-  // Process tables with pipes at start/end
-  result = result.replace(tableRegex, (match) => {
-    const parsed = parseMarkdownTable(match);
-    if (parsed && parsed.headers.length > 0 && parsed.rows.length > 0) {
-      return renderBoxTable(parsed.headers, parsed.rows);
+
+  const lines = normalized.split('\n');
+  const result: string[] = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? '';
+    const nextLine = lines[i + 1] ?? '';
+
+    if (line.includes('|') && isMarkdownTableSeparatorLine(nextLine)) {
+      const tableLines = [line, nextLine];
+      i += 2;
+
+      while (i < lines.length) {
+        const candidate = lines[i] ?? '';
+        if (!candidate.trim() || !candidate.includes('|')) {
+          i -= 1;
+          break;
+        }
+        tableLines.push(candidate);
+        i += 1;
+      }
+
+      const parsed = parseMarkdownTable(tableLines.join('\n'));
+      if (parsed && parsed.headers.length > 0) {
+        result.push(renderBoxTable(parsed.headers, parsed.rows, parsed.alignments));
+      } else {
+        result.push(...tableLines);
+      }
+      continue;
     }
-    return match;
-  });
-  
-  // Process tables that might not have leading pipes
-  result = result.replace(tableRegex2, (match) => {
-    // Skip if already transformed (contains box-drawing chars)
-    if (match.includes(BOX.topLeft)) return match;
-    
-    const parsed = parseMarkdownTable(match);
-    if (parsed && parsed.headers.length > 0 && parsed.rows.length > 0) {
-      return renderBoxTable(parsed.headers, parsed.rows);
-    }
-    return match;
-  });
-  
-  return result;
+
+    result.push(line);
+  }
+
+  return result.join('\n');
 }
 
 /**

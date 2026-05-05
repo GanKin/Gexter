@@ -3,11 +3,11 @@ import { describe, expect, test } from 'bun:test';
 import { formatUserFacingError } from './errors';
 
 describe('formatUserFacingError', () => {
-  test('gives local provider auth errors a local-specific hint', () => {
-    const message = formatUserFacingError('401 unauthorized', 'OpenAI Compatible Local');
+  test('gives OpenAI-compatible auth errors a Base URL hint', () => {
+    const message = formatUserFacingError('401 unauthorized', 'OpenAI Compatible API');
 
     expect(message).toContain('Base URL');
-    expect(message).toContain('本地服务');
+    expect(message).toContain('OpenAI 兼容服务');
     expect(message).not.toContain('environment variables');
   });
 

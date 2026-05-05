@@ -1,28 +1,41 @@
-import { getRuntimeHealth } from '../runtime/health';
-import { createWebRuntimeSession } from '../runtime/session';
+import {
+  handleCreateSessionRequest,
+  handleRuntimeHealthRequest,
+  handleSessionAbortRequest,
+  handleSessionApproveRequest,
+  handleSessionChatRequest,
+  handleSessionModelRequest,
+} from '../runtime/api';
 
 export async function handleWebUiRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
   if (url.pathname === '/api/runtime/health') {
-    if (req.method !== 'GET') {
-      return new Response('Method Not Allowed', { status: 405 });
-    }
-
-    return Response.json(await getRuntimeHealth());
+    return handleRuntimeHealthRequest(req);
   }
 
   if (url.pathname === '/api/runtime/sessions') {
-    if (req.method !== 'POST') {
-      return new Response('Method Not Allowed', { status: 405 });
-    }
+    return handleCreateSessionRequest(req);
+  }
 
-    const session = createWebRuntimeSession();
-    return Response.json({
-      sessionId: session.id,
-      model: session.model,
-      status: session.status,
-    });
+  const chatMatch = url.pathname.match(/^\/api\/runtime\/sessions\/([^/]+)\/chat$/);
+  if (chatMatch?.[1]) {
+    return handleSessionChatRequest(req, decodeURIComponent(chatMatch[1]));
+  }
+
+  const modelMatch = url.pathname.match(/^\/api\/runtime\/sessions\/([^/]+)\/model$/);
+  if (modelMatch?.[1]) {
+    return handleSessionModelRequest(req, decodeURIComponent(modelMatch[1]));
+  }
+
+  const approveMatch = url.pathname.match(/^\/api\/runtime\/sessions\/([^/]+)\/approve$/);
+  if (approveMatch?.[1]) {
+    return handleSessionApproveRequest(req, decodeURIComponent(approveMatch[1]));
+  }
+
+  const abortMatch = url.pathname.match(/^\/api\/runtime\/sessions\/([^/]+)\/abort$/);
+  if (abortMatch?.[1]) {
+    return handleSessionAbortRequest(req, decodeURIComponent(abortMatch[1]));
   }
 
   return new Response('Not found', { status: 404 });

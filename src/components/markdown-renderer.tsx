@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
+import { isMarkdownTableSeparatorLine, parseMarkdownTable } from '@/utils/markdown-table-core';
 
 type MarkdownRendererProps = {
   content: string;
@@ -139,6 +140,61 @@ function renderParagraph(text: string, key: string) {
   );
 }
 
+function renderTableBlock(tableText: string, key: string) {
+  const parsed = parseMarkdownTable(tableText);
+  if (!parsed) {
+    return renderParagraph(tableText, key);
+  }
+
+  const columnCount = parsed.headers.length;
+  const tableRows = parsed.rows.length > 0 ? parsed.rows : [Array.from({ length: columnCount }, () => '')];
+
+  return (
+    <div
+      key={key}
+      className="overflow-x-auto rounded-xl border border-border/70 bg-muted/30 shadow-sm"
+    >
+      <table className="w-full table-fixed border-collapse text-sm leading-6 text-foreground">
+        <thead className="bg-muted/60">
+          <tr>
+            {parsed.headers.map((header, index) => {
+              const alignment = parsed.alignments[index] ?? 'left';
+              return (
+                <th
+                  key={`${key}-head-${index}`}
+                  scope="col"
+                  className="border-b border-border/60 px-3 py-2 font-semibold text-foreground align-top"
+                  style={{ textAlign: alignment }}
+                >
+                  {renderInlineMarkdown(header)}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {tableRows.map((row, rowIndex) => (
+            <tr key={`${key}-row-${rowIndex}`} className="odd:bg-background/40">
+              {parsed.headers.map((_, columnIndex) => {
+                const alignment = parsed.alignments[columnIndex] ?? 'left';
+                return (
+                  <td
+                    key={`${key}-cell-${rowIndex}-${columnIndex}`}
+                    className="border-b border-border/40 px-3 py-2 align-top text-foreground [overflow-wrap:anywhere]"
+                    style={{ textAlign: alignment }}
+                  >
+                    {renderInlineMarkdown(row[columnIndex] ?? '')}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function renderMarkdownBlocks(content: string): ReactNode[] {
   const lines = content.replace(/\r\n/g, '\n').split('\n');
   const blocks: ReactNode[] = [];
@@ -227,6 +283,22 @@ function renderMarkdownBlocks(content: string): ReactNode[] {
     if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(trimmed)) {
       blocks.push(<hr key={`hr-${blocks.length}`} className="border-border/70" />);
       index += 1;
+      continue;
+    }
+
+    if (trimmed.includes('|') && isMarkdownTableSeparatorLine(lines[index + 1] ?? '')) {
+      const tableLines = [currentLine, lines[index + 1] ?? ''];
+      index += 2;
+      while (index < lines.length) {
+        const tableLine = lines[index] ?? '';
+        if (!tableLine.trim() || !tableLine.includes('|')) {
+          break;
+        }
+        tableLines.push(tableLine);
+        index += 1;
+      }
+
+      blocks.push(renderTableBlock(tableLines.join('\n'), `table-${blocks.length}`));
       continue;
     }
 

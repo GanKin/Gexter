@@ -10,7 +10,7 @@ export interface ProviderDef {
   displayName: string;
   /** Model name prefix used for routing (e.g., 'claude-'). Empty string for default (OpenAI). */
   modelPrefix: string;
-  /** Environment variable name for API key. Omit for local providers (e.g., Ollama or OpenAI-compatible local servers). */
+  /** Environment variable name for API key. Omit for providers that do not need one (e.g., Ollama or OpenAI-compatible servers). */
   apiKeyEnvVar?: string;
   /** Fast model variant for lightweight tasks like summarization. */
   fastModel?: string;
@@ -83,7 +83,7 @@ export const PROVIDERS: ProviderDef[] = [
   },
   {
     id: 'local',
-    displayName: 'OpenAI Compatible Local',
+    displayName: 'OpenAI Compatible API',
     modelPrefix: 'local:',
     contextWindow: 128_000,
   },
