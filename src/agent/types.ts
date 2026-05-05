@@ -44,6 +44,8 @@ export interface AgentConfig {
   modelProvider?: string;
   /** Maximum agent loop iterations (default: 10) */
   maxIterations?: number;
+  /** Optional API key override supplied by the WebUI. */
+  apiKey?: string;
   /** AbortSignal for cancelling agent execution */
   signal?: AbortSignal;
   /** Delivery channel (e.g., 'whatsapp', 'cli') — affects response formatting */

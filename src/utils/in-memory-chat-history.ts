@@ -89,6 +89,19 @@ Generate a brief 1-2 sentence summary of this answer.`;
   }
 
   /**
+   * Restores already-completed turns without re-summarizing them.
+   * Used when rehydrating a persisted web session after refresh.
+   */
+  restore(messages: Message[]): void {
+    this.messages = messages.map((message, index) => ({
+      id: index,
+      query: message.query,
+      answer: message.answer,
+      summary: message.summary,
+    }));
+  }
+
+  /**
    * Returns all messages
    */
   getMessages(): Message[] {

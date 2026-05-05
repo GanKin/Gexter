@@ -2,35 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
-current_phase_name: run transparency
 current_plan: Not started
-status: executing
+status: Ready to plan
 stopped_at: Phase 3 UI-SPEC approved
-last_updated: "2026-05-04T14:07:03.741Z"
-last_activity: 2026-05-04
+last_updated: "2026-05-05T02:17:25.352Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 5
-  percent: 63
+  completed_phases: 3
+  total_plans: 10
+  completed_plans: 7
+  percent: 80
 ---
 
 # State
 
 ## Current Position
 
-**Status:** Ready to execute
-**Current Phase:** 3
-**Current Phase Name:** run transparency
-**Last Activity:** 2026-05-04
-**Last Activity Description:** Phase 03 planning complete — 3 plans ready
+Phase: 5
+Plan: 1 of 2
 
 ## Progress
 
 **Current Plan:** Not started
-**Total Plans in Phase:** 3
+**Total Plans in Phase:** 2
 **Phases Complete:** 1
 **Plans Complete:** 3
 **Progress:** [████████░░] 80%
@@ -40,14 +34,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-03)
 
 **Core value:** 把 Dexter 的现有能力安全地暴露成一个好用的 Web 入口，同时不破坏已经成熟的核心引擎。
-**Current focus:** Phase 03 — run transparency (human verification pending)
+**Current focus:** Phase 5 — polish & parity
 
 ## Working Notes
 
 - 这是一个 brownfield 初始化，仓库里已有成熟的 Dexter 核心能力。
 - 当前项目方向是“WebUI 外层包裹”，不是重写 agent / tool / memory / cron / gateway。
 - `.planning/codebase/` 已存在并已完成映射，可直接作为后续阶段规划的基础。
-- Phase 03 的代码实现已完成，当前只剩浏览器人工确认项。
+- Phase 04 的代码实现已完成，当前进入 Phase 05 的准备阶段。
 
 ## Performance Metrics
 
@@ -73,4 +67,4 @@ None
 
 ## Next Step
 
-完成 Phase 03 的浏览器人工确认，重点检查工具详情、审批卡片、Stop 流程和模型切换。
+开始 Phase 05 的规划与收尾，重点打磨响应式布局、键盘可达性和回归测试。

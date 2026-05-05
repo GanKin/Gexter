@@ -53,9 +53,13 @@ export async function POST(request: Request, { params }: ChatRouteContext) {
       void (async () => {
         try {
           await runWebSession(session, {
-            query,
-            config: { model: session.model },
-            onEvent: (event) => {
+          query,
+          config: {
+            model: session.model,
+            modelProvider: session.modelProvider,
+            apiKey: session.apiKey,
+          },
+          onEvent: (event) => {
               if (STREAMABLE_EVENT_TYPES.has(event.event.type as StreamableAgentEvent['type'])) {
                 sendEvent(event.event as StreamableAgentEvent);
               }

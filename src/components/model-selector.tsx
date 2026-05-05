@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Circle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { getApiKey } from '@/lib/preferences';
 import { cn } from '@/lib/utils';
 import { PROVIDERS, resolveProvider } from '@/providers';
 import { getModelDisplayName, getModelsForProvider } from '@/utils/model';
@@ -22,6 +23,8 @@ export function ModelSelector({ currentModel, onModelChange }: ModelSelectorProp
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const currentProviderId = resolveProvider(currentModel).id;
+  const activeProviderId = selectedProvider ?? currentProviderId;
+  const providerHasKey = getApiKey(activeProviderId) !== null;
 
   const visibleProviders = useMemo(
     () => PROVIDERS.filter((provider) => VISIBLE_PROVIDER_IDS.includes(provider.id)),
@@ -150,6 +153,11 @@ export function ModelSelector({ currentModel, onModelChange }: ModelSelectorProp
                   </button>
                 );
               })}
+              {!providerHasKey ? (
+                <div className="rounded-md border border-dashed border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  未设置 API key，请在设置面板中配置。
+                </div>
+              ) : null}
             </>
           )}
         </Card>

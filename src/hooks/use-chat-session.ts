@@ -13,10 +13,25 @@ import type {
   ToolErrorEvent,
   ToolStartEvent,
 } from '@/agent/types';
-
+import { resolveProvider } from '@/providers';
+import { getApiKey, loadPreferences, savePreference } from '@/lib/preferences';
+import {
+  addToIndex,
+  getActiveSessionId,
+  getSessionIndex,
+  removeFromIndex,
+  setActiveSessionId,
+  updateIndex,
+  type SessionSummary,
+} from '@/lib/session-index';
+import {
+  buildSessionMetadata,
+  deleteSession as deleteStoredSession,
+  loadMessages,
+  saveMessages,
+  saveSession,
+} from '@/lib/session-store';
 import { consumeSSEStream, type ChatMessage, type SSEEvent, type ToolCallInfo } from '@/hooks/use-sse-stream';
-
-const SESSION_STORAGE_KEY = 'dexter-session-id';
 
 function createEmptyAssistantMessage(): ChatMessage {
   return {
@@ -40,26 +55,6 @@ function createUserMessage(content: string): ChatMessage {
     thinking: false,
     thinkingMessage: null,
   };
-}
-
-function createInitialSessionId(): string | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    return window.localStorage.getItem(SESSION_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function persistSessionId(sessionId: string) {
-  try {
-    window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
-  } catch {
-    // Local storage is best-effort in browsers; continue without persistence if unavailable.
-  }
 }
 
 function replaceAssistantMessage(
@@ -134,20 +129,55 @@ function isDoneEvent(event: SSEEvent): event is DoneEvent {
   return event.type === 'done';
 }
 
+function buildHistoryPayload(messages: ChatMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  let pendingUser: ChatMessage | null = null;
+
+  for (const message of messages) {
+    if (message.role === 'user') {
+      pendingUser = message;
+      continue;
+    }
+
+    if (message.role === 'assistant' && pendingUser) {
+      history.push({ role: 'user', content: pendingUser.content });
+      history.push({ role: 'assistant', content: message.content });
+      pendingUser = null;
+    }
+  }
+
+  return history;
+}
+
+function createInitialCurrentModel(): string {
+  return loadPreferences().model;
+}
+
+function createInitialSessionId(): string | null {
+  return getActiveSessionId();
+}
+
 export function useChatSession() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(() => createInitialSessionId());
+  const [sessionList, setSessionList] = useState<SessionSummary[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentModel, setCurrentModel] = useState('gpt-5.4');
+  const [currentModel, setCurrentModel] = useState(() => createInitialCurrentModel());
   const sessionIdRef = useRef<string | null>(sessionId);
+  const messagesRef = useRef<ChatMessage[]>(messages);
   const streamingRef = useRef(false);
   const currentModelRef = useRef(currentModel);
   const modelOverrideRef = useRef(false);
+  const sessionListRef = useRef<SessionSummary[]>([]);
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     streamingRef.current = isStreaming;
@@ -158,7 +188,11 @@ export function useChatSession() {
   }, [currentModel]);
 
   useEffect(() => {
-    const loadCurrentModel = async () => {
+    sessionListRef.current = sessionList;
+  }, [sessionList]);
+
+  useEffect(() => {
+    const loadPreferencesAndHealth = async () => {
       try {
         const response = await fetch('/api/runtime/health');
         if (!response.ok) {
@@ -166,44 +200,111 @@ export function useChatSession() {
         }
 
         const data = (await response.json()) as { model?: unknown };
-        if (!modelOverrideRef.current && typeof data.model === 'string' && data.model.length > 0) {
+        if (!modelOverrideRef.current && currentModelRef.current === 'gpt-5.4' && typeof data.model === 'string' && data.model.length > 0) {
           setCurrentModel(data.model);
         }
       } catch {
-        // Ignore health failures; fallback to the default model until a session is created.
+        // Ignore health failures; fallback to defaults.
       }
     };
 
-    void loadCurrentModel();
+    void loadPreferencesAndHealth();
   }, []);
 
-  const createNewSession = async (): Promise<string> => {
+  const mutateMessages = (updater: (current: ChatMessage[]) => ChatMessage[]) => {
+    setMessages((current) => {
+      const next = updater(current);
+      messagesRef.current = next;
+      return next;
+    });
+  };
+
+  const loadSessionList = async (): Promise<SessionSummary[]> => {
+    const list = getSessionIndex();
+    setSessionList(list);
+    sessionListRef.current = list;
+    return list;
+  };
+
+  const persistSessionSnapshot = async (
+    targetSessionId: string,
+    snapshotMessages: ChatMessage[],
+    model = currentModelRef.current,
+  ): Promise<void> => {
+    const existing = sessionListRef.current.find((entry) => entry.sessionId === targetSessionId) ?? null;
+    const metadata = buildSessionMetadata(targetSessionId, snapshotMessages, model, existing);
+    await Promise.all([
+      saveMessages(targetSessionId, snapshotMessages),
+      saveSession(targetSessionId, metadata),
+    ]);
+
+    addToIndex(targetSessionId, metadata.title, metadata.model);
+    updateIndex(targetSessionId, {
+      title: metadata.title,
+      createdAt: metadata.createdAt,
+      lastActiveAt: metadata.lastActiveAt,
+      model: metadata.model,
+      messageCount: metadata.messageCount,
+    });
+
+    setActiveSessionId(targetSessionId);
+    await loadSessionList();
+  };
+
+  const ensureRuntimeSession = async (
+    targetSessionId: string,
+    historyMessages: ChatMessage[] = messagesRef.current,
+    model = currentModelRef.current,
+  ): Promise<void> => {
+    const provider = resolveProvider(model).id;
+    const apiKey = getApiKey(provider) ?? undefined;
+
     const response = await fetch('/api/runtime/sessions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model: currentModelRef.current }),
+      body: JSON.stringify({
+        sessionId: targetSessionId,
+        model,
+        provider,
+        apiKey,
+        history: buildHistoryPayload(historyMessages),
+      }),
     });
+
     if (!response.ok) {
-      throw new Error(`Session creation failed: ${response.status}`);
+      throw new Error(await response.text() || `Session creation failed: ${response.status}`);
     }
-
-    const data = (await response.json()) as { sessionId?: unknown; model?: unknown };
-    if (typeof data.sessionId !== 'string' || data.sessionId.length === 0) {
-      throw new Error('Session response did not include a sessionId');
-    }
-
-    sessionIdRef.current = data.sessionId;
-    setSessionId(data.sessionId);
-    if (typeof data.model === 'string' && data.model.length > 0) {
-      setCurrentModel(data.model);
-    }
-    persistSessionId(data.sessionId);
-    return data.sessionId;
   };
 
-  const ensureSessionId = async (): Promise<string | null> => {
+  const createNewSession = async (): Promise<string> => {
+    const targetSessionId = `web-${crypto.randomUUID()}`;
+    const nextMessages: ChatMessage[] = [];
+
+    setError(null);
+    setSessionId(targetSessionId);
+    sessionIdRef.current = targetSessionId;
+    mutateMessages(() => nextMessages);
+    setActiveSessionId(targetSessionId);
+    addToIndex(targetSessionId, '新会话', currentModelRef.current);
+    updateIndex(targetSessionId, {
+      title: '新会话',
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+      model: currentModelRef.current,
+      messageCount: 0,
+    });
+    await saveSession(
+      targetSessionId,
+      buildSessionMetadata(targetSessionId, nextMessages, currentModelRef.current),
+    );
+    await ensureRuntimeSession(targetSessionId, nextMessages, currentModelRef.current);
+    await loadSessionList();
+    return targetSessionId;
+  };
+
+  const ensureSessionId = async (): Promise<string> => {
     if (sessionIdRef.current) {
       return sessionIdRef.current;
     }
@@ -212,21 +313,128 @@ export function useChatSession() {
   };
 
   const createSession = async (): Promise<void> => {
-    setError(null);
     await createNewSession();
   };
+
+  const switchSession = async (targetSessionId: string): Promise<void> => {
+    if (!targetSessionId || targetSessionId === sessionIdRef.current || streamingRef.current) {
+      return;
+    }
+
+    setError(null);
+    if (sessionIdRef.current) {
+      await persistSessionSnapshot(sessionIdRef.current, messagesRef.current, currentModelRef.current);
+    }
+
+    const targetSummary = sessionListRef.current.find((entry) => entry.sessionId === targetSessionId) ?? null;
+    const restoredMessages = await loadMessages(targetSessionId);
+
+    setSessionId(targetSessionId);
+    sessionIdRef.current = targetSessionId;
+    mutateMessages(() => restoredMessages);
+    setActiveSessionId(targetSessionId);
+
+    if (targetSummary?.model && targetSummary.model !== currentModelRef.current) {
+      modelOverrideRef.current = true;
+      setCurrentModel(targetSummary.model);
+      currentModelRef.current = targetSummary.model;
+      savePreference('model', targetSummary.model);
+      savePreference('provider', resolveProvider(targetSummary.model).id);
+    }
+
+    await ensureRuntimeSession(targetSessionId, restoredMessages, targetSummary?.model ?? currentModelRef.current);
+    await loadSessionList();
+  };
+
+  const startNewSession = async (): Promise<void> => {
+    if (streamingRef.current) {
+      return;
+    }
+
+    if (sessionIdRef.current) {
+      await persistSessionSnapshot(sessionIdRef.current, messagesRef.current, currentModelRef.current);
+    }
+
+    await createNewSession();
+  };
+
+  const deleteSessionById = async (targetSessionId: string): Promise<void> => {
+    if (!targetSessionId) {
+      return;
+    }
+
+    if (streamingRef.current && sessionIdRef.current === targetSessionId) {
+      return;
+    }
+
+    await deleteStoredSession(targetSessionId);
+    removeFromIndex(targetSessionId);
+
+    if (sessionIdRef.current === targetSessionId) {
+      setSessionId(null);
+      sessionIdRef.current = null;
+      mutateMessages(() => []);
+      await createNewSession();
+      return;
+    }
+
+    await loadSessionList();
+  };
+
+  useEffect(() => {
+    const initialize = async () => {
+      const list = await loadSessionList();
+      const activeSessionId = getActiveSessionId();
+
+      if (!activeSessionId) {
+        return;
+      }
+
+      const restoredMessages = await loadMessages(activeSessionId);
+      const summary = list.find((entry) => entry.sessionId === activeSessionId) ?? null;
+
+      setSessionId(activeSessionId);
+      sessionIdRef.current = activeSessionId;
+      mutateMessages(() => restoredMessages);
+
+      if (summary?.model && summary.model !== currentModelRef.current) {
+        modelOverrideRef.current = true;
+        setCurrentModel(summary.model);
+        currentModelRef.current = summary.model;
+      }
+
+      await ensureRuntimeSession(activeSessionId, restoredMessages, summary?.model ?? currentModelRef.current);
+    };
+
+    void initialize();
+  }, []);
+
+  useEffect(() => {
+    if (!sessionIdRef.current) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void persistSessionSnapshot(sessionIdRef.current!, messagesRef.current, currentModelRef.current);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [messages, currentModel]);
 
   const changeModel = async (model: string, provider: string): Promise<void> => {
     modelOverrideRef.current = true;
     currentModelRef.current = model;
     setCurrentModel(model);
+    savePreference('model', model);
+    savePreference('provider', provider);
 
-    if (!sessionIdRef.current) {
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) {
       return;
     }
 
     try {
-      await fetch(`/api/runtime/sessions/${sessionIdRef.current}/model`, {
+      await fetch(`/api/runtime/sessions/${currentSessionId}/model`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -274,7 +482,7 @@ export function useChatSession() {
 
   const handleEvent = (event: SSEEvent) => {
     if (isThinkingEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
           thinking: true,
@@ -285,7 +493,7 @@ export function useChatSession() {
     }
 
     if (isStreamProgressEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
           content:
@@ -307,7 +515,7 @@ export function useChatSession() {
     }
 
     if (isToolStartEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
           thinking: false,
@@ -327,7 +535,7 @@ export function useChatSession() {
     }
 
     if (isToolEndEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
           thinking: false,
@@ -349,7 +557,7 @@ export function useChatSession() {
     }
 
     if (isToolErrorEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
           thinking: false,
@@ -366,7 +574,7 @@ export function useChatSession() {
     }
 
     if (isToolApprovalEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
           approvalRequest: {
@@ -389,7 +597,7 @@ export function useChatSession() {
     }
 
     if (isToolDeniedEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => {
           if (message.approvalRequest?.id !== event.requestId) {
             return message;
@@ -409,7 +617,7 @@ export function useChatSession() {
     }
 
     if (isDoneEvent(event)) {
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (message) => ({
           ...message,
           content: event.answer,
@@ -426,7 +634,7 @@ export function useChatSession() {
     if (event.type === 'error') {
       const message = typeof event.message === 'string' ? event.message : 'Dexter runtime returned an error';
       setError(message);
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (assistant) => ({
           ...assistant,
           content: assistant.content || message,
@@ -453,11 +661,17 @@ export function useChatSession() {
       return;
     }
 
-    setMessages((current) => [...current, createUserMessage(normalizedQuery), createEmptyAssistantMessage()]);
-    streamingRef.current = true;
+    const currentHistory = messagesRef.current;
+    const nextMessages = [...currentHistory, createUserMessage(normalizedQuery), createEmptyAssistantMessage()];
+    mutateMessages(() => nextMessages);
     setIsStreaming(true);
+    streamingRef.current = true;
 
     try {
+      await ensureRuntimeSession(activeSessionId, currentHistory, currentModelRef.current);
+
+      await persistSessionSnapshot(activeSessionId, nextMessages, currentModelRef.current);
+
       const response = await fetch(`/api/runtime/sessions/${activeSessionId}/chat`, {
         method: 'POST',
         headers: {
@@ -475,7 +689,7 @@ export function useChatSession() {
         onError: (streamError) => {
           const message = streamError.message || 'Streaming failed';
           setError(message);
-          setMessages((current) =>
+          mutateMessages((current) =>
             replaceAssistantMessage(current, (assistant) => ({
               ...assistant,
               content: assistant.content || `Error: ${message}`,
@@ -490,7 +704,7 @@ export function useChatSession() {
         onComplete: () => {
           streamingRef.current = false;
           setIsStreaming(false);
-          setMessages((current) =>
+          mutateMessages((current) =>
             replaceAssistantMessage(current, (assistant) => ({
               ...assistant,
               status: assistant.status === 'complete' ? assistant.status : 'aborted',
@@ -498,12 +712,13 @@ export function useChatSession() {
               thinkingMessage: null,
             })),
           );
+          void persistSessionSnapshot(activeSessionId, messagesRef.current, currentModelRef.current);
         },
       });
     } catch (streamError) {
       const message = streamError instanceof Error ? streamError.message : 'Unable to send query';
       setError(message);
-      setMessages((current) =>
+      mutateMessages((current) =>
         replaceAssistantMessage(current, (assistant) => ({
           ...assistant,
           content: assistant.content || `Error: ${message}`,
@@ -521,10 +736,15 @@ export function useChatSession() {
     messages,
     isStreaming,
     sessionId,
+    sessionList,
     currentModel,
     changeModel,
     sendQuery,
     createSession,
+    loadSessionList,
+    switchSession,
+    startNewSession,
+    deleteSessionById,
     approveTool,
     abortSession,
     error,

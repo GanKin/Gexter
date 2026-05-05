@@ -52,11 +52,16 @@ async function withRetry<T>(fn: () => Promise<T>, provider: string, maxAttempts 
 // Model provider configuration
 interface ModelOpts {
   streaming: boolean;
+  apiKey?: string;
 }
 
 type ModelFactory = (name: string, opts: ModelOpts) => BaseChatModel;
 
-function getApiKey(envVar: string): string {
+function getApiKey(envVar: string, override?: string): string {
+  if (override && override.trim().length > 0) {
+    return override;
+  }
+
   const apiKey = process.env[envVar];
   if (!apiKey) {
     throw new Error(`[LLM] ${envVar} not found in environment variables`);
@@ -70,19 +75,19 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
     new ChatAnthropic({
       model: name,
       ...opts,
-      apiKey: getApiKey('ANTHROPIC_API_KEY'),
+      apiKey: getApiKey('ANTHROPIC_API_KEY', opts.apiKey),
     }),
   google: (name, opts) =>
     new ChatGoogleGenerativeAI({
       model: name,
       ...opts,
-      apiKey: getApiKey('GOOGLE_API_KEY'),
+      apiKey: getApiKey('GOOGLE_API_KEY', opts.apiKey),
     }),
   xai: (name, opts) =>
     new ChatOpenAI({
       model: name,
       ...opts,
-      apiKey: getApiKey('XAI_API_KEY'),
+      apiKey: getApiKey('XAI_API_KEY', opts.apiKey),
       configuration: {
         baseURL: 'https://api.x.ai/v1',
       },
@@ -91,7 +96,7 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
     new ChatOpenAI({
       model: name.replace(/^openrouter:/, ''),
       ...opts,
-      apiKey: getApiKey('OPENROUTER_API_KEY'),
+      apiKey: getApiKey('OPENROUTER_API_KEY', opts.apiKey),
       configuration: {
         baseURL: 'https://openrouter.ai/api/v1',
       },
@@ -100,7 +105,7 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
     new ChatOpenAI({
       model: name,
       ...opts,
-      apiKey: getApiKey('MOONSHOT_API_KEY'),
+      apiKey: getApiKey('MOONSHOT_API_KEY', opts.apiKey),
       configuration: {
         baseURL: 'https://api.moonshot.cn/v1',
       },
@@ -112,7 +117,7 @@ const MODEL_FACTORIES: Record<string, ModelFactory> = {
     return new ChatOpenAI({
       model: name,
       ...opts,
-      apiKey: getApiKey('DEEPSEEK_API_KEY'),
+      apiKey: getApiKey('DEEPSEEK_API_KEY', opts.apiKey),
       configuration: {
         baseURL: 'https://api.deepseek.com',
       },
@@ -138,14 +143,15 @@ const DEFAULT_FACTORY: ModelFactory = (name, opts) =>
   new ChatOpenAI({
     model: name,
     ...opts,
-    apiKey: getApiKey('OPENAI_API_KEY'),
+    apiKey: getApiKey('OPENAI_API_KEY', opts.apiKey),
   });
 
 export function getChatModel(
   modelName: string = DEFAULT_MODEL,
-  streaming: boolean = false
+  streaming: boolean = false,
+  apiKey?: string,
 ): BaseChatModel {
-  const opts: ModelOpts = { streaming };
+  const opts: ModelOpts = { streaming, apiKey };
   const provider = resolveProvider(modelName);
   const factory = MODEL_FACTORIES[provider.id] ?? DEFAULT_FACTORY;
   return factory(modelName, opts);
@@ -157,6 +163,7 @@ interface CallLlmOptions {
   outputSchema?: z.ZodType<unknown>;
   tools?: StructuredToolInterface[];
   signal?: AbortSignal;
+  apiKey?: string;
 }
 
 export interface LlmResult {
@@ -216,7 +223,7 @@ export async function callLlm(prompt: string, options: CallLlmOptions = {}): Pro
   const { model = DEFAULT_MODEL, systemPrompt, outputSchema, tools, signal } = options;
   const finalSystemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
 
-  const llm = getChatModel(model, false);
+  const llm = getChatModel(model, false, options.apiKey);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
@@ -289,6 +296,7 @@ interface CallLlmWithMessagesOptions {
   model?: string;
   tools?: StructuredToolInterface[];
   signal?: AbortSignal;
+  apiKey?: string;
 }
 
 /**
@@ -308,7 +316,7 @@ export async function callLlmWithMessages(
 ): Promise<LlmResult> {
   const { model = DEFAULT_MODEL, tools, signal } = options;
 
-  const llm = getChatModel(model, false);
+  const llm = getChatModel(model, false, options.apiKey);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;
@@ -351,7 +359,7 @@ export async function* streamLlmWithMessages(
 ): AsyncGenerator<AIMessageChunk, void> {
   const { model = DEFAULT_MODEL, tools, signal } = options;
 
-  const llm = getChatModel(model, true);
+  const llm = getChatModel(model, true, options.apiKey);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let runnable: Runnable<any, any> = llm;

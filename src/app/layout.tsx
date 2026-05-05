@@ -25,7 +25,32 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="zh-Hans" className={`${inter.variable} ${robotoMono.variable}`}>
+    <html lang="zh-Hans" className={`${inter.variable} ${robotoMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (() => {
+                try {
+                  const raw = localStorage.getItem('dexter-preferences');
+                  const prefs = raw ? JSON.parse(raw) : {};
+                  const theme = prefs && typeof prefs === 'object' && typeof prefs.theme === 'string' ? prefs.theme : 'light';
+                  const resolved = theme === 'dark'
+                    ? 'dark'
+                    : theme === 'system'
+                      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                      : 'light';
+                  document.documentElement.classList.toggle('dark', resolved === 'dark');
+                  document.documentElement.style.colorScheme = resolved;
+                } catch {
+                  document.documentElement.classList.remove('dark');
+                  document.documentElement.style.colorScheme = 'light';
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

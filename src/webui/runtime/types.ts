@@ -26,6 +26,8 @@ export type WebSessionStatus = 'idle' | 'running' | 'complete' | 'aborted' | 'er
 export type WebRuntimeSession = {
   id: string;
   model: string;
+  modelProvider: string;
+  apiKey?: string;
   createdAt: string;
   history: InMemoryChatHistory;
   approvedTools: Set<string>;
@@ -49,6 +51,7 @@ export type WebRuntimeEvent = {
 export type WebRuntimeAgentConfig = {
   model?: string;
   modelProvider?: string;
+  apiKey?: string;
   maxIterations?: number;
   signal?: AbortSignal;
   requestToolApproval?: AgentConfig['requestToolApproval'];

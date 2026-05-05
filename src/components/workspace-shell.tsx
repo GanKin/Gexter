@@ -6,6 +6,8 @@ import { RefreshCw, Sparkles } from 'lucide-react';
 import { ChatInput } from '@/components/chat-input';
 import { ChatMessage } from '@/components/chat-message';
 import { ModelSelector } from '@/components/model-selector';
+import { SessionList } from '@/components/session-list';
+import { SettingsPanel } from '@/components/settings-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,9 +24,13 @@ export function WorkspaceShell() {
     messages,
     isStreaming,
     sessionId,
+    sessionList,
     currentModel,
     changeModel,
     sendQuery,
+    switchSession,
+    startNewSession,
+    deleteSessionById,
     approveTool,
     abortSession,
     error,
@@ -98,19 +104,15 @@ export function WorkspaceShell() {
               <ModelSelector currentModel={currentModel} onModelChange={changeModel} />
             </div>
 
-            <div className="grid gap-3 rounded-xl border border-border bg-background/70 p-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Session</p>
-                <p className="mt-1 text-sm font-medium">
-                  {sessionId ? `${sessionId.slice(0, 12)}…` : 'Waiting for first prompt'}
-                </p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Model</p>
-                <p className="mt-1 text-sm font-medium">{currentModel}</p>
-              </div>
-            </div>
+            <SessionList
+              sessions={sessionList}
+              activeSessionId={sessionId}
+              onNewSession={() => void startNewSession()}
+              onSelectSession={(targetSessionId) => void switchSession(targetSessionId)}
+              onDeleteSession={(targetSessionId) => void deleteSessionById(targetSessionId)}
+            />
+
+            <SettingsPanel />
           </CardContent>
         </Card>
 

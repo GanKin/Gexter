@@ -25,6 +25,26 @@
   --font-mono: 'Geist Mono', 'SFMono-Regular', ui-monospace, monospace;
 }
 
+.dark {
+  --background: 220 20% 10%;
+  --foreground: 40 20% 90%;
+  --card: 220 15% 14%;
+  --card-foreground: 40 20% 90%;
+  --popover: 220 15% 14%;
+  --popover-foreground: 40 20% 90%;
+  --primary: 152 28% 29%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 15% 18%;
+  --secondary-foreground: 40 20% 90%;
+  --muted: 220 15% 18%;
+  --muted-foreground: 215 10% 70%;
+  --accent: 152 26% 22%;
+  --accent-foreground: 40 20% 90%;
+  --border: 220 14% 24%;
+  --input: 220 14% 24%;
+  --ring: 152 28% 29%;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -42,6 +62,13 @@ body {
     radial-gradient(circle at bottom right, hsl(38 38% 72% / 0.28), transparent 34%),
     hsl(var(--background));
   font-family: var(--font-sans);
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at top left, hsl(152 28% 29% / 0.18), transparent 30%),
+    radial-gradient(circle at bottom right, hsl(220 16% 18% / 0.45), transparent 34%),
+    hsl(var(--background));
 }
 
 a {

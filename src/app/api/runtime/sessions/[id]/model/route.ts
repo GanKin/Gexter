@@ -41,6 +41,7 @@ export async function PATCH(request: Request, { params }: ModelRouteContext) {
   }
 
   session.model = model;
+  session.modelProvider = provider;
   session.history.setModel(model);
 
   return Response.json({ ok: true, model });
