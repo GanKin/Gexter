@@ -33,7 +33,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   };
 
   return (
-    <div className="space-y-3 border-t border-border/60 bg-background/80 p-4 backdrop-blur">
+    <div className="space-y-3 border-t border-border/60 bg-[#f7f7f4] p-4 backdrop-blur">
       <div className="space-y-2">
         <Textarea
           value={input}
@@ -41,7 +41,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
           onKeyDown={handleKeyDown}
           placeholder="Ask Dexter about markets, filings, or companies..."
           disabled={disabled}
-          className="min-h-[80px] max-h-[200px] resize-y border-border/80 bg-background/95"
+          className="min-h-[80px] max-h-[200px] resize-y border-border/80 bg-[#f7f7f4]"
         />
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">

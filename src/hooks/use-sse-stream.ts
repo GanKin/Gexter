@@ -28,6 +28,7 @@ export type ChatMessage = {
   toolCalls: ToolCallInfo[];
   thinking: boolean;
   thinkingMessage: string | null;
+  reasoningText: string;
   approvalRequest?: ApprovalRequest;
 };
 

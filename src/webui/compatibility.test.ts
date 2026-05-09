@@ -62,6 +62,8 @@ describe('webui compatibility', () => {
     expect(read('src/webui/runtime/api.ts')).toContain('createWebRuntimeSession');
     expect(read('src/webui/runtime/api.ts')).toContain('sessionId: session.id');
     expect(read('src/webui/client/routes/workspace.tsx')).toContain('WorkspaceShell');
+    expect(read('src/components/workspace-shell.tsx')).toContain('Reasoning');
+    expect(read('src/components/workspace-shell.tsx')).not.toContain('Dexter 正在思考...');
   });
 
   test('existing cli and gateway entry files remain present', () => {

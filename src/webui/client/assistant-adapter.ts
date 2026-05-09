@@ -38,6 +38,7 @@ export type DexterApprovalView = {
 
 export type DexterAssistantMetadata = {
   thinkingMessage?: string | null;
+  reasoningText?: string;
   toolCalls?: DexterToolCallView[];
   approvalRequest?: DexterApprovalView;
 };
@@ -59,6 +60,7 @@ const LEGACY_INDEXED_DB_NAME = 'dexter-webui';
 
 export type DexterRunState = {
   text: string;
+  reasoningText: string;
   thinkingMessage: string | null;
   toolCalls: DexterToolCallView[];
   approvalRequest?: DexterApprovalView;
@@ -281,9 +283,12 @@ export function applyDexterSseEvent(state: DexterRunState, event: SSEEvent): Dex
   }
 
   if (event.type === 'stream_progress') {
-    const text = event.mode === 'responding' && typeof event.textDelta === 'string'
+    const text = typeof event.textDelta === 'string' && event.textDelta.length > 0
       ? `${state.text}${event.textDelta}`
       : state.text;
+    const reasoningText = typeof event.thinkingDelta === 'string' && event.thinkingDelta.length > 0
+      ? `${state.reasoningText}${event.thinkingDelta}`
+      : state.reasoningText;
     const thinkingMessage =
       event.mode === 'requesting'
         ? '正在请求模型...'
@@ -293,7 +298,7 @@ export function applyDexterSseEvent(state: DexterRunState, event: SSEEvent): Dex
             ? '正在调用工具...'
             : null;
 
-    return { ...state, text, thinkingMessage };
+    return { ...state, text, reasoningText, thinkingMessage };
   }
 
   if (event.type === 'tool_start') {
@@ -380,6 +385,7 @@ export function applyDexterSseEvent(state: DexterRunState, event: SSEEvent): Dex
     return {
       ...state,
       text: event.answer,
+      reasoningText: state.reasoningText,
       thinkingMessage: null,
       toolCalls,
       done: true,
@@ -390,6 +396,7 @@ export function applyDexterSseEvent(state: DexterRunState, event: SSEEvent): Dex
     return {
       ...state,
       error: event.message,
+      reasoningText: state.reasoningText,
       thinkingMessage: null,
       done: true,
     };
@@ -402,6 +409,7 @@ function buildMetadata(state: DexterRunState): { custom: DexterAssistantMetadata
   return {
     custom: {
       thinkingMessage: state.thinkingMessage,
+      reasoningText: state.reasoningText,
       toolCalls: state.toolCalls,
       approvalRequest: state.approvalRequest,
     },
@@ -495,6 +503,7 @@ export function createDexterAssistantAdapter(options: DexterAssistantAdapterOpti
 
       let state: DexterRunState = {
         text: '',
+        reasoningText: '',
         thinkingMessage: '正在连接 Dexter runtime...',
         toolCalls: [],
         done: false,

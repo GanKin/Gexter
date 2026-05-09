@@ -42,6 +42,7 @@ function createEmptyAssistantMessage(): ChatMessage {
     toolCalls: [],
     thinking: true,
     thinkingMessage: '正在连接 Dexter runtime...',
+    reasoningText: '',
   };
 }
 
@@ -54,6 +55,7 @@ function createUserMessage(content: string): ChatMessage {
     toolCalls: [],
     thinking: false,
     thinkingMessage: null,
+    reasoningText: '',
   };
 }
 
@@ -512,9 +514,13 @@ export function useChatSession() {
         replaceAssistantMessage(current, (message) => ({
           ...message,
           content:
-            event.mode === 'responding' && typeof event.textDelta === 'string'
+            typeof event.textDelta === 'string' && event.textDelta.length > 0
               ? `${message.content}${event.textDelta}`
               : message.content,
+          reasoningText:
+            typeof event.thinkingDelta === 'string' && event.thinkingDelta.length > 0
+              ? `${message.reasoningText}${event.thinkingDelta}`
+              : message.reasoningText,
           thinking: event.mode !== 'responding',
           thinkingMessage:
             event.mode === 'requesting'
@@ -639,6 +645,7 @@ export function useChatSession() {
           status: 'complete',
           thinking: false,
           thinkingMessage: null,
+          reasoningText: message.reasoningText,
           toolCalls: message.toolCalls.length > 0 ? message.toolCalls : mapToolCalls(event.toolCalls),
         })),
       );
@@ -656,6 +663,7 @@ export function useChatSession() {
           status: 'complete',
           thinking: false,
           thinkingMessage: null,
+          reasoningText: assistant.reasoningText,
         })),
       );
       setIsStreaming(false);
@@ -718,6 +726,7 @@ export function useChatSession() {
               status: 'complete',
               thinking: false,
               thinkingMessage: null,
+              reasoningText: assistant.reasoningText,
             })),
           );
           streamingRef.current = false;
@@ -732,6 +741,7 @@ export function useChatSession() {
               status: assistant.status === 'complete' ? assistant.status : 'aborted',
               thinking: false,
               thinkingMessage: null,
+              reasoningText: assistant.reasoningText,
             })),
           );
           void persistSessionSnapshot(activeSessionId, messagesRef.current, currentModelRef.current);
@@ -747,6 +757,7 @@ export function useChatSession() {
           status: 'complete',
           thinking: false,
           thinkingMessage: null,
+          reasoningText: assistant.reasoningText,
         })),
       );
       streamingRef.current = false;

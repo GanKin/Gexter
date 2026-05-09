@@ -1,68 +1,62 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-  useLocalRuntime,
+  useExternalStoreRuntime,
   useMessage,
   useThread,
   type TextMessagePartProps,
   type ToolCallMessagePartProps,
 } from '@assistant-ui/react';
-import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import {
   Check,
   CircleAlert,
+  ChevronRight,
   Loader2,
   RefreshCw,
-  Search,
   Send,
   ShieldCheck,
   Square,
   Sparkles,
+  Wrench,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { MarkdownRenderer } from '@/components/markdown-renderer';
+import { ReasoningGroup } from '@/components/reasoning-group';
+import { ThreadSidebar } from '@/components/thread-sidebar';
 import { cn } from '@/lib/utils';
-import {
-  clearLegacyWebUiHistory,
-  createDexterAssistantAdapter,
-  type DexterApprovalView,
-  type DexterAssistantMetadata,
-} from '@/webui/client/assistant-adapter';
+import { useAssistantThreads } from '@/hooks/use-assistant-threads';
+import type { DexterApprovalView, DexterAssistantMetadata } from '@/webui/client/assistant-adapter';
+import { summarizeToolTarget } from '@/webui/client/tool-summary';
 import type { ApprovalDecision } from '@/agent/types';
 
 type RuntimeStatus = 'Checking' | 'Connected' | 'Offline';
 
 function TextPart(_props: TextMessagePartProps) {
-  return (
-    <MarkdownTextPrimitive
-      className="dexter-markdown"
-      components={{
-        a: ({ className, ...props }) => (
-          <a className={cn('text-sky-700 underline-offset-4 hover:underline', className)} {...props} />
-        ),
-      }}
-    />
-  );
+  const { text } = _props;
+
+  return <MarkdownRenderer content={text} className="space-y-4 text-[15px] leading-7 text-zinc-800" />;
 }
 
 function ToolPart(props: ToolCallMessagePartProps) {
   const isRunning = props.status.type === 'running';
   const isError = props.isError || props.status.type === 'incomplete';
+  const summary = summarizeToolTarget(props.toolName, props.args as Record<string, unknown> | undefined);
 
   return (
     <div
       className={cn(
-        'flex items-center gap-2 rounded-md border px-3 py-2 text-xs',
+        'flex items-center gap-2 rounded-xl border px-3 py-2 text-xs',
         isError
           ? 'border-red-200 bg-red-50 text-red-700'
           : isRunning
-            ? 'border-zinc-200 bg-zinc-50 text-zinc-700'
+            ? 'border-zinc-200 bg-white text-zinc-700'
             : 'border-emerald-200 bg-emerald-50 text-emerald-700',
       )}
     >
@@ -74,7 +68,8 @@ function ToolPart(props: ToolCallMessagePartProps) {
         <Check aria-hidden="true" className="h-3.5 w-3.5" />
       )}
       <span className="font-medium">{props.toolName}</span>
-      <span className="text-current/70">
+      <span className="min-w-0 flex-1 truncate text-current/75">{summary}</span>
+      <span className="shrink-0 text-current/70">
         {isRunning ? '运行中' : isError ? '错误' : '完成'}
       </span>
     </div>
@@ -82,16 +77,30 @@ function ToolPart(props: ToolCallMessagePartProps) {
 }
 
 function ToolGroup({ children }: { children?: ReactNode }) {
-  return <div className="mb-4 flex flex-wrap gap-2">{children}</div>;
+  const toolCount = Children.count(children);
+
+  return (
+    <details className="group mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-[#f7f7f4] shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm text-zinc-700 outline-none transition hover:bg-white/60 [&::-webkit-details-marker]:hidden">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-500">
+          <Wrench aria-hidden="true" className="h-4 w-4" />
+        </span>
+        <span className="font-medium">Tools</span>
+        <span className="text-zinc-400">{toolCount}</span>
+        <ChevronRight
+          aria-hidden="true"
+          className="ml-auto h-4 w-4 text-zinc-400 transition-transform duration-200 group-open:rotate-90"
+        />
+      </summary>
+      <div className="border-t border-zinc-200 px-4 py-3">
+        <div className="space-y-2">{children}</div>
+      </div>
+    </details>
+  );
 }
 
 function EmptyPart() {
-  return (
-    <div className="flex items-center gap-2 text-sm text-zinc-500">
-      <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-      <span>Dexter 正在思考...</span>
-    </div>
-  );
+  return null;
 }
 
 function ApprovalCard({
@@ -162,47 +171,35 @@ function AssistantMessage({
   const status = useMessage((message) => message.status);
   const metadata = useMessage((message) => message.metadata.custom as DexterAssistantMetadata | undefined);
   const isUser = role === 'user';
+  const reasoningText = metadata?.reasoningText ?? '';
+  const hasReasoning = reasoningText.trim().length > 0;
+  const isReasoningActive = status?.type === 'running';
 
   return (
     <MessagePrimitive.Root
       className={cn(
-        'group flex w-full gap-4 px-4 py-5 md:px-8',
+        'group w-full py-5',
         isUser ? 'bg-transparent' : 'bg-white',
       )}
     >
-      <div
-        className={cn(
-          'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border',
-          isUser ? 'border-zinc-300 bg-zinc-100 text-zinc-700' : 'border-zinc-900 bg-zinc-950 text-white',
-        )}
-      >
-        {isUser ? (
-          <Search aria-hidden="true" className="h-4 w-4" />
-        ) : (
-          <Sparkles aria-hidden="true" className="h-4 w-4" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className={cn('max-w-3xl text-[15px] leading-7', isUser ? 'font-medium text-zinc-950' : 'text-zinc-800')}>
+      <div className="mx-auto w-full max-w-3xl px-4 md:px-0">
+        <div className={cn('text-[15px] leading-7', isUser ? 'font-medium text-zinc-950' : 'text-zinc-800')}>
+          {!isUser && (hasReasoning || isReasoningActive) ? (
+            <ReasoningGroup
+              message={reasoningText}
+              isActive={isReasoningActive}
+              placeholder={metadata?.thinkingMessage ?? '正在思考...'}
+            />
+          ) : null}
           <MessagePrimitive.Parts
             components={{
-              Text: isUser
-                ? ({ text }) => <p className="whitespace-pre-wrap break-words">{text}</p>
-                : TextPart,
+              Text: isUser ? ({ text }) => <p className="whitespace-pre-wrap break-words">{text}</p> : TextPart,
               Empty: EmptyPart,
               ToolGroup,
               tools: { Fallback: ToolPart },
             }}
           />
         </div>
-
-        {!isUser && metadata?.thinkingMessage && status?.type === 'running' ? (
-          <div className="mt-3 flex items-center gap-2 text-sm text-zinc-500">
-            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-            <span>{metadata.thinkingMessage}</span>
-          </div>
-        ) : null}
 
         {!isUser && metadata?.approvalRequest ? (
           <ApprovalCard approval={metadata.approvalRequest} sessionId={sessionId} onApprove={onApprove} />
@@ -216,8 +213,8 @@ function Composer() {
   const isRunning = useThread((thread) => thread.isRunning);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-5 md:px-0">
-      <ComposerPrimitive.Root className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-[0_14px_40px_rgba(24,24,27,0.10)]">
+    <div className="mx-auto w-full max-w-3xl">
+      <ComposerPrimitive.Root className="rounded-2xl border border-zinc-200 bg-[#f7f7f4] p-3 shadow-[0_14px_40px_rgba(24,24,27,0.10)]">
         <ComposerPrimitive.Input
           autoFocus
           placeholder="Ask Dexter about markets, filings, or companies..."
@@ -250,7 +247,7 @@ function EmptyHero() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-24rem)] max-w-3xl flex-col items-center justify-end px-4 pb-8 pt-12 text-center md:pt-20">
+    <div className="mx-auto flex min-h-[calc(100vh-24rem)] max-w-3xl flex-col items-center justify-end px-4 pb-32 pt-12 text-center md:pt-20">
       <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-950 text-white">
         <Sparkles aria-hidden="true" className="h-5 w-5" />
       </div>
@@ -273,16 +270,17 @@ function Thread({
 }) {
   return (
     <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
-      <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-y-auto scroll-smooth bg-[#f7f7f4]">
+      <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-y-auto scroll-smooth bg-[#f7f7f4] pb-56">
         <EmptyHero />
         <ThreadPrimitive.Messages
           components={{
             Message: () => <AssistantMessage sessionId={sessionId} onApprove={onApprove} />,
           }}
         />
-        <ThreadPrimitive.ViewportFooter className="sticky bottom-0 bg-gradient-to-t from-[#f7f7f4] via-[#f7f7f4] to-transparent pt-10">
+        <ThreadPrimitive.ViewportFooter />
+        <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[#f7f7f4] via-[#f7f7f4] to-transparent px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10 md:left-72 md:px-6">
           <Composer />
-        </ThreadPrimitive.ViewportFooter>
+        </div>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
   );
@@ -290,20 +288,11 @@ function Thread({
 
 export function WorkspaceShell() {
   const [status, setStatus] = useState<RuntimeStatus>('Checking');
-  const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-
-  const adapter = useMemo(
-    () =>
-      createDexterAssistantAdapter({
-        onSessionId: setSessionId,
-        onError: (message) => setError(message || null),
-        onRunStateChange: setIsRunning,
-      }),
-    [],
-  );
-  const runtime = useLocalRuntime(adapter);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const threads = useAssistantThreads(setIsRunning);
+  const runtime = useExternalStoreRuntime(threads.runtimeStore);
+  const error = healthError ?? threads.error;
 
   const loadHealth = async () => {
     try {
@@ -314,13 +303,13 @@ export function WorkspaceShell() {
 
       const data = (await response.json()) as { ok?: boolean };
       setStatus(data.ok ? 'Connected' : 'Offline');
+      setHealthError(null);
     } catch {
       setStatus('Offline');
     }
   };
 
   useEffect(() => {
-    void clearLegacyWebUiHistory();
     void loadHealth();
   }, []);
 
@@ -336,50 +325,50 @@ export function WorkspaceShell() {
         body: JSON.stringify({ requestId, decision }),
       });
     } catch {
-      setError('授权请求发送失败。');
+      setHealthError('授权请求发送失败。');
     }
   };
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <main className="flex min-h-screen flex-col bg-[#f7f7f4] text-zinc-950">
-        <header className="sticky top-0 z-10 border-b border-zinc-200/80 bg-[#f7f7f4]/90 backdrop-blur">
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 md:px-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-950 text-white">
-                <Sparkles aria-hidden="true" className="h-4 w-4" />
-              </div>
-              <div className="leading-tight">
-                <div className="text-sm font-semibold">Dexter WebUI</div>
-                <div className="text-xs text-zinc-500">assistant-ui Perplexity preset</div>
-              </div>
-            </div>
+      <main className="flex min-h-screen flex-col bg-[#f7f7f4] text-zinc-950 md:flex-row">
+        <ThreadSidebar
+          sessions={threads.sessions}
+          activeSessionId={threads.sessionId}
+          isRunning={threads.isRunning}
+          onNewThread={() => void threads.startNewThread()}
+          onSelectThread={(targetSessionId) => void threads.switchThread(targetSessionId)}
+        />
 
-            <div className="flex items-center gap-2">
-              {error ? (
-                <span className="hidden max-w-xs truncate text-xs text-red-600 sm:inline">{error}</span>
-              ) : null}
-              <Badge variant={status === 'Connected' ? 'default' : 'secondary'}>{status}</Badge>
-              {isRunning ? (
-                <Badge variant="secondary" className="gap-1.5">
-                  <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />
-                  运行中
-                </Badge>
-              ) : null}
-              <Button type="button" variant="outline" size="sm" onClick={() => void loadHealth()}>
-                <RefreshCw aria-hidden="true" className="h-4 w-4" />
-                <span className="hidden sm:inline">刷新</span>
-              </Button>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <header className="sticky top-0 z-10 border-b border-zinc-200/80 bg-[#f7f7f4]/90 backdrop-blur">
+            <div className="flex h-14 items-center justify-between gap-4 px-4 md:px-6">
+              <div className="flex items-center gap-2">
+                {error ? (
+                  <span className="hidden max-w-xs truncate text-xs text-red-600 sm:inline">{error}</span>
+                ) : null}
+                <Badge variant={status === 'Connected' ? 'default' : 'secondary'}>{status}</Badge>
+                {isRunning ? (
+                  <Badge variant="secondary" className="gap-1.5">
+                    <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />
+                    运行中
+                  </Badge>
+                ) : null}
+                <Button type="button" variant="outline" size="sm" onClick={() => void loadHealth()}>
+                  <RefreshCw aria-hidden="true" className="h-4 w-4" />
+                  <span className="hidden sm:inline">刷新</span>
+                </Button>
+              </div>
             </div>
-          </div>
-          {error ? (
-            <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 sm:hidden">
-              {error}
-            </div>
-          ) : null}
-        </header>
+            {error ? (
+              <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 sm:hidden">
+                {error}
+              </div>
+            ) : null}
+          </header>
 
-        <Thread sessionId={sessionId} onApprove={approveTool} />
+          <Thread sessionId={threads.sessionId} onApprove={approveTool} />
+        </div>
       </main>
     </AssistantRuntimeProvider>
   );

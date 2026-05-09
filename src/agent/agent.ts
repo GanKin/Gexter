@@ -310,9 +310,9 @@ export class Agent {
       baseUrl: this.baseUrl,
     })) {
       accumulated = accumulated ? accumulated.concat(chunk) : chunk;
-      const { charDelta, mode, textDelta } = inspectChunkContent(chunk);
+      const { charDelta, mode, textDelta, thinkingDelta } = inspectChunkContent(chunk);
       if (charDelta > 0 || mode !== 'responding') {
-        yield { type: 'stream_progress', charDelta, mode, textDelta };
+        yield { type: 'stream_progress', charDelta, mode, textDelta, thinkingDelta };
       }
     }
 
@@ -656,7 +656,9 @@ const MODE_PRIORITY: Record<StreamMode, number> = {
  * "advanced" mode the chunk contains. LangChain content can be a plain string
  * (most providers) or an array of typed parts (Anthropic).
  */
-function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: StreamMode; textDelta?: string } {
+function inspectChunkContent(
+  chunk: AIMessageChunk,
+): { charDelta: number; mode: StreamMode; textDelta?: string; thinkingDelta?: string } {
   const content = chunk.content;
   if (typeof content === 'string') {
     return { charDelta: content.length, mode: 'responding', textDelta: content };
@@ -668,6 +670,7 @@ function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: 
   let charDelta = 0;
   let mode: StreamMode = 'responding';
   const textParts: string[] = [];
+  const thinkingParts: string[] = [];
   for (const part of content) {
     if (!part || typeof part !== 'object') continue;
     const partType = (part as { type?: string }).type;
@@ -680,7 +683,10 @@ function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: 
       if (MODE_PRIORITY.responding > MODE_PRIORITY[mode]) mode = 'responding';
     } else if (partType === 'thinking' || partType === 'redacted_thinking') {
       const thinkingText = (part as { thinking?: string }).thinking;
-      if (typeof thinkingText === 'string') charDelta += thinkingText.length;
+      if (typeof thinkingText === 'string') {
+        charDelta += thinkingText.length;
+        thinkingParts.push(thinkingText);
+      }
       if (MODE_PRIORITY.thinking > MODE_PRIORITY[mode]) mode = 'thinking';
     } else if (partType === 'tool_use' || partType === 'input_json_delta') {
       const partialJson = (part as { input?: unknown; partial_json?: string }).partial_json;
@@ -688,5 +694,10 @@ function inspectChunkContent(chunk: AIMessageChunk): { charDelta: number; mode: 
       if (MODE_PRIORITY['tool-input'] > MODE_PRIORITY[mode]) mode = 'tool-input';
     }
   }
-  return textParts.length > 0 ? { charDelta, mode, textDelta: textParts.join('') } : { charDelta, mode };
+  return {
+    charDelta,
+    mode,
+    ...(textParts.length > 0 ? { textDelta: textParts.join('') } : {}),
+    ...(thinkingParts.length > 0 ? { thinkingDelta: thinkingParts.join('') } : {}),
+  };
 }

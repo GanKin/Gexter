@@ -1,10 +1,11 @@
 'use client';
 
-import { Check, CircleAlert, Loader2, UserRound, WandSparkles } from 'lucide-react';
+import { Check, CircleAlert, Loader2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
+import { ReasoningGroup } from '@/components/reasoning-group';
 import type { ChatMessage as ChatMessageModel } from '@/hooks/use-sse-stream';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +48,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const isComplete = message.status === 'complete';
   const hasTools = message.toolCalls.length > 0;
+  const reasoningText = message.reasoningText?.trim() ?? '';
+  const showReasoning = reasoningText.length > 0 || (message.status === 'streaming' && message.thinking);
+  const isReasoningActive = message.status === 'streaming' && message.thinking;
 
   return (
     <Card
@@ -60,52 +64,34 @@ export function ChatMessage({ message }: ChatMessageProps) {
       )}
     >
       <div className="space-y-3 p-4">
-        <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm',
-              isUser
-                ? 'border-primary/30 bg-primary text-primary-foreground'
-                : 'border-border bg-background text-foreground',
-            )}
-          >
-            {isUser ? (
-              <UserRound aria-hidden="true" className="h-4 w-4" />
-            ) : (
-              <WandSparkles aria-hidden="true" className="h-4 w-4" />
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div
-              className={cn(
-                'text-sm leading-relaxed whitespace-pre-wrap break-words',
-                isUser ? 'text-foreground' : 'text-foreground',
-              )}
-            >
-              {isUser ? (
-                message.content
-              ) : message.status === 'streaming' ? (
-                message.thinking ? (
-                  <div className="flex items-center gap-2 text-muted-foreground animate-pulse">
-                    <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                    <span>{message.thinkingMessage ?? '正在思考...'}</span>
-                  </div>
-                ) : hasTools ? (
+        <div className={cn('text-sm leading-relaxed whitespace-pre-wrap break-words', isUser ? 'text-foreground' : 'text-foreground')}>
+          {isUser ? (
+            message.content
+          ) : (
+            <div className="space-y-3">
+              {showReasoning ? (
+                <ReasoningGroup
+                  message={reasoningText}
+                  isActive={isReasoningActive}
+                  placeholder={message.thinkingMessage ?? '正在思考...'}
+                />
+              ) : null}
+              {message.status === 'streaming' ? (
+                hasTools ? (
                   <div className="space-y-3">
                     <div className="text-muted-foreground">Dexter 正在处理工具调用...</div>
                     <div className="flex flex-wrap gap-2">
                       {message.toolCalls.map(renderToolBadge)}
                     </div>
                   </div>
-                ) : (
+                ) : !showReasoning ? (
                   <div className="flex items-center gap-2 text-muted-foreground animate-pulse">
                     <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                    <span>正在生成回复...</span>
+                    <span>{message.thinkingMessage ?? '正在生成回复...'}</span>
                   </div>
-                )
+                ) : null
               ) : (
-                <div className="space-y-3">
+                <>
                   <MarkdownRenderer content={message.content} />
                   {hasTools ? (
                     <div className="space-y-2 border-t border-border/60 pt-3">
@@ -115,10 +101,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       </p>
                     </div>
                   ) : null}
-                </div>
+                </>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </Card>

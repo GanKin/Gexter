@@ -53,6 +53,7 @@ describe('assistant-ui Dexter adapter mapping', () => {
   test('maps thinking, progress, and done events into assistant content', () => {
     let state: DexterRunState = {
       text: '',
+      reasoningText: '',
       thinkingMessage: null,
       toolCalls: [],
       done: false,
@@ -60,6 +61,15 @@ describe('assistant-ui Dexter adapter mapping', () => {
 
     state = applyDexterSseEvent(state, { type: 'thinking', message: 'thinking' });
     expect(state.thinkingMessage).toBe('thinking');
+
+    state = applyDexterSseEvent(state, {
+      type: 'stream_progress',
+      mode: 'thinking',
+      charDelta: 7,
+      thinkingDelta: '先分析',
+    });
+    expect(state.reasoningText).toBe('先分析');
+    expect(buildRunResult(state).metadata?.custom?.reasoningText).toBe('先分析');
 
     state = applyDexterSseEvent(state, {
       type: 'stream_progress',
@@ -84,6 +94,7 @@ describe('assistant-ui Dexter adapter mapping', () => {
   test('maps tool lifecycle events into assistant-ui tool call parts', () => {
     let state: DexterRunState = {
       text: '',
+      reasoningText: '',
       thinkingMessage: null,
       toolCalls: [],
       done: false,
@@ -117,6 +128,7 @@ describe('assistant-ui Dexter adapter mapping', () => {
   test('maps approval and error events into metadata/status', () => {
     let state: DexterRunState = {
       text: '',
+      reasoningText: '',
       thinkingMessage: null,
       toolCalls: [],
       done: false,

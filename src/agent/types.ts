@@ -214,6 +214,7 @@ export interface StreamProgressEvent {
   charDelta: number;
   mode: StreamMode;
   textDelta?: string;
+  thinkingDelta?: string;
   [key: string]: unknown;
 }
 
