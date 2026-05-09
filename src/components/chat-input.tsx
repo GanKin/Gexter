@@ -26,7 +26,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && event.shiftKey) {
       event.preventDefault();
       submit();
     }
@@ -45,7 +45,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         />
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            {disabled ? 'Agent is thinking...' : 'Enter 发送，Shift+Enter 换行'}
+            {disabled ? 'Agent is thinking...' : 'Enter 换行，Shift+Enter 发送'}
           </p>
           <Button type="button" onClick={submit} disabled={disabled || !input.trim()}>
             <Send aria-hidden="true" data-icon="inline-start" />

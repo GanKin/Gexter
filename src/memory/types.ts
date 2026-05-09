@@ -16,6 +16,8 @@ export interface MemoryRuntimeConfig {
   enabled: boolean;
   embeddingProvider: EmbeddingProviderId;
   embeddingModel?: string;
+  embeddingBaseUrl?: string;
+  embeddingApiKey?: string;
   maxSessionContextTokens: number;
   chunkTokens: number;
   chunkOverlapTokens: number;

@@ -2,6 +2,7 @@ import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { OllamaEmbeddings } from '@langchain/ollama';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import type { EmbeddingProviderId, MemoryEmbeddingClient } from './types.js';
+import { DEFAULT_MEMORY_EMBEDDING_MODEL, getMemoryEmbeddingConnection } from './env.js';
 
 const DEFAULT_OPENAI_MODEL = 'text-embedding-3-small';
 const DEFAULT_GEMINI_MODEL = 'gemini-embedding-001';
@@ -27,9 +28,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   });
 }
 
-function resolveProvider(preferred: EmbeddingProviderId): ResolvedProvider | null {
-  if (preferred === 'openai' && process.env.OPENAI_API_KEY) {
-    return 'openai';
+function resolveProvider(preferred: EmbeddingProviderId, connection: { baseUrl?: string; apiKey?: string }): ResolvedProvider | null {
+  if (preferred === 'openai') {
+    return connection.baseUrl && connection.apiKey ? 'openai' : null;
   }
   if (preferred === 'gemini' && process.env.GOOGLE_API_KEY) {
     return 'gemini';
@@ -39,7 +40,7 @@ function resolveProvider(preferred: EmbeddingProviderId): ResolvedProvider | nul
   }
 
   if (preferred === 'auto') {
-    if (process.env.OPENAI_API_KEY) {
+    if (connection.baseUrl && connection.apiKey) {
       return 'openai';
     }
     if (process.env.GOOGLE_API_KEY) {
@@ -69,17 +70,25 @@ async function embedInBatches(
 export function createEmbeddingClient(params: {
   provider: EmbeddingProviderId;
   model?: string;
+  baseUrl?: string;
+  apiKey?: string;
 }): MemoryEmbeddingClient | null {
-  const resolved = resolveProvider(params.provider);
+  const connection = getMemoryEmbeddingConnection({
+    model: params.model,
+    baseUrl: params.baseUrl,
+    apiKey: params.apiKey,
+  });
+  const resolved = resolveProvider(params.provider, connection);
   if (!resolved) {
     return null;
   }
 
   if (resolved === 'openai') {
-    const model = params.model || DEFAULT_OPENAI_MODEL;
+    const model = connection.model || DEFAULT_MEMORY_EMBEDDING_MODEL || DEFAULT_OPENAI_MODEL;
     const embeddings = new OpenAIEmbeddings({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: connection.apiKey,
       model,
+      configuration: connection.baseUrl ? { baseURL: connection.baseUrl } : undefined,
     });
     return {
       provider: 'openai',

@@ -3,6 +3,7 @@ import { createEmbeddingClient } from './embeddings.js';
 import { MemoryIndexer } from './indexer.js';
 import { hybridSearch } from './search.js';
 import { MemoryStore } from './store.js';
+import { DEFAULT_MEMORY_EMBEDDING_MODEL, getMemoryEmbeddingConnection } from './env.js';
 import type {
   MemoryReadOptions,
   MemoryReadResult,
@@ -17,8 +18,10 @@ import { getSetting } from '../utils/config.js';
 
 const DEFAULT_CONFIG: MemoryRuntimeConfig = {
   enabled: true,
-  embeddingProvider: 'auto',
-  embeddingModel: undefined,
+  embeddingProvider: 'openai',
+  embeddingModel: DEFAULT_MEMORY_EMBEDDING_MODEL,
+  embeddingBaseUrl: undefined,
+  embeddingApiKey: undefined,
   maxSessionContextTokens: 2000,
   chunkTokens: 400,
   chunkOverlapTokens: 80,
@@ -34,8 +37,6 @@ const DEFAULT_CONFIG: MemoryRuntimeConfig = {
 
 type MemorySettings = {
   enabled?: boolean;
-  embeddingProvider?: MemoryRuntimeConfig['embeddingProvider'];
-  embeddingModel?: string;
   maxSessionContextTokens?: number;
   temporalDecay?: Partial<TemporalDecayConfig>;
   mmr?: Partial<MMRConfig>;
@@ -44,9 +45,14 @@ type MemorySettings = {
 
 function resolveConfig(): MemoryRuntimeConfig {
   const settings = getSetting<MemorySettings | undefined>('memory', undefined);
+  const embeddingConnection = getMemoryEmbeddingConnection();
   return {
     ...DEFAULT_CONFIG,
     ...(settings ?? {}),
+    embeddingProvider: 'openai',
+    embeddingModel: embeddingConnection.model,
+    embeddingBaseUrl: embeddingConnection.baseUrl,
+    embeddingApiKey: embeddingConnection.apiKey,
     temporalDecay: { ...DEFAULT_CONFIG.temporalDecay, ...(settings?.temporalDecay ?? {}) },
     mmr: { ...DEFAULT_CONFIG.mmr, ...(settings?.mmr ?? {}) },
   };
@@ -83,6 +89,8 @@ export class MemoryManager {
     const client = createEmbeddingClient({
       provider: this.config.embeddingProvider,
       model: this.config.embeddingModel,
+      baseUrl: this.config.embeddingBaseUrl,
+      apiKey: this.config.embeddingApiKey,
     });
 
     try {
@@ -147,6 +155,8 @@ export class MemoryManager {
     const client = createEmbeddingClient({
       provider: this.config.embeddingProvider,
       model: this.config.embeddingModel,
+      baseUrl: this.config.embeddingBaseUrl,
+      apiKey: this.config.embeddingApiKey,
     });
     return hybridSearch({
       db: this.db,

@@ -31,6 +31,7 @@ describe('webui compatibility', () => {
   test('webui runtime avoids gateway and core duplication imports', () => {
     const combined = [
       read('src/webui/runtime/adapter.ts'),
+      read('src/webui/runtime/api.ts'),
       read('src/webui/runtime/session.ts'),
       read('src/webui/server/routes.ts'),
       read('src/webui/server/index.ts'),
@@ -58,8 +59,8 @@ describe('webui compatibility', () => {
     expect(read('src/webui/runtime/adapter.ts')).toContain('Agent.create');
     expect(read('src/webui/runtime/adapter.ts')).toContain('agent.run(options.query, session.history)');
     expect(read('src/webui/runtime/health.ts')).toContain("getSetting('modelId', 'gpt-5.4')");
-    expect(read('src/webui/server/routes.ts')).toContain('createWebRuntimeSession');
-    expect(read('src/webui/server/routes.ts')).toContain('sessionId: session.id');
+    expect(read('src/webui/runtime/api.ts')).toContain('createWebRuntimeSession');
+    expect(read('src/webui/runtime/api.ts')).toContain('sessionId: session.id');
     expect(read('src/webui/client/routes/workspace.tsx')).toContain('WorkspaceShell');
   });
 
