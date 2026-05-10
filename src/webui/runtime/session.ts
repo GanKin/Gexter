@@ -4,6 +4,7 @@ import type { WebRuntimeSession } from './types';
 
 export type CreateWebRuntimeSessionOptions = {
   sessionId?: string;
+  userId?: string | null;
   model?: string;
   modelProvider?: string;
   apiKey?: string;
@@ -35,6 +36,7 @@ export function createWebRuntimeSession(options: CreateWebRuntimeSessionOptions 
 
   const session: WebRuntimeSession = {
     id: sessionId,
+    userId: options.userId ?? null,
     model,
     modelProvider: options.modelProvider ?? 'openai',
     apiKey: options.apiKey ?? getDefaultWebRuntimeApiKey(),

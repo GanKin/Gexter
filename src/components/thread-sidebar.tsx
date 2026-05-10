@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock3, PanelLeft, Plus, Sparkles } from 'lucide-react';
+import { Clock3, PanelLeft, Plus, Sparkles, Trash2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { SessionSummary } from '@/lib/session-index';
@@ -11,6 +11,7 @@ type ThreadSidebarProps = {
   isRunning: boolean;
   onNewThread: () => void;
   onSelectThread: (sessionId: string) => void;
+  onDeleteThread: (sessionId: string) => void;
 };
 
 export function ThreadSidebar({
@@ -19,6 +20,7 @@ export function ThreadSidebar({
   isRunning,
   onNewThread,
   onSelectThread,
+  onDeleteThread,
 }: ThreadSidebarProps) {
   return (
     <aside className="flex border-zinc-200 bg-[#f1f0ed] text-zinc-700 md:h-screen md:w-72 md:shrink-0 md:flex-col md:border-r">
@@ -73,20 +75,38 @@ export function ThreadSidebar({
             sessions.map((session) => {
               const isActive = session.sessionId === activeSessionId;
               return (
-                <button
+                <div
                   key={session.sessionId}
-                  type="button"
-                  disabled={isRunning}
-                  onClick={() => onSelectThread(session.sessionId)}
                   className={cn(
-                    'max-w-52 shrink-0 truncate rounded-xl px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50 md:max-w-none md:px-4',
-                    isActive
-                      ? 'bg-white/75 font-medium text-zinc-950 shadow-sm'
-                      : 'text-zinc-600 hover:bg-zinc-200/70 hover:text-zinc-950',
+                    'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 transition md:px-4',
+                    isActive ? 'bg-white/75 shadow-sm' : 'hover:bg-zinc-200/70',
                   )}
                 >
-                  {session.title}
-                </button>
+                  <button
+                    type="button"
+                    disabled={isRunning}
+                    onClick={() => onSelectThread(session.sessionId)}
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50',
+                      isActive ? 'font-medium text-zinc-950' : 'text-zinc-600 hover:text-zinc-950',
+                    )}
+                  >
+                    {session.title}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isRunning}
+                    aria-label={`删除 ${session.title}`}
+                    className="rounded-lg p-1 text-zinc-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => {
+                      if (confirm(`删除会话「${session.title}」？`)) {
+                        onDeleteThread(session.sessionId);
+                      }
+                    }}
+                  >
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                </div>
               );
             })
           )}

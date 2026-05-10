@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    environment:
+      POSTGRES_DB: dexter
+      POSTGRES_USER: dexter
+      POSTGRES_PASSWORD: dexter
+    ports:
+      - "15432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dexter -d dexter"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - dexter-postgres:/var/lib/postgresql/data
+
   dexter-webui:
     build:
       context: .
@@ -8,6 +25,10 @@ services:
     environment:
       HOSTNAME: 0.0.0.0
       PORT: 3000
+      DATABASE_URL: postgres://dexter:dexter@postgres:5432/dexter
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -16,3 +37,4 @@ services:
 
 volumes:
   dexter-data:
+  dexter-postgres:

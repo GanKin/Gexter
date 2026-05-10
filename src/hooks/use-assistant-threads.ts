@@ -15,11 +15,12 @@ import {
   buildSessionTitle,
   getActiveSessionId,
   getSessionIndex,
+  removeFromIndex,
   setActiveSessionId,
   updateIndex,
   type SessionSummary,
 } from '@/lib/session-index';
-import { loadThreadMessages, saveThreadMessages } from '@/webui/client/thread-store';
+import { deleteThreadMessages, loadThreadMessages, saveThreadMessages } from '@/webui/client/thread-store';
 import { DEFAULT_MODEL, getApiKey, loadPreferences } from '@/lib/preferences';
 import { resolveProvider } from '@/providers';
 import { consumeSSEStream } from '@/hooks/use-sse-stream';
@@ -30,8 +31,17 @@ import {
   getLatestUserQuery,
   type DexterRunState,
 } from '@/webui/client/assistant-adapter';
+import {
+  deleteAccountSession,
+  fetchAccountSessionSummaries,
+  importLocalAccountHistory,
+  loadAccountSession,
+  saveAccountSessionSnapshot,
+} from '@/webui/client/account-api';
 
 type RuntimeStatusSetter = (isRunning: boolean) => void;
+
+const LOCAL_IMPORT_MARKER = 'dexter-cloud-history-imported';
 
 function createMessageId(): string {
   return `msg-${crypto.randomUUID()}`;
@@ -147,6 +157,48 @@ async function abortRuntimeSession(sessionId: string): Promise<void> {
   }
 }
 
+async function loadServerSessions(): Promise<SessionSummary[]> {
+  try {
+    return await fetchAccountSessionSummaries();
+  } catch {
+    return [];
+  }
+}
+
+async function maybeImportLegacySessions(): Promise<void> {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (window.localStorage.getItem(LOCAL_IMPORT_MARKER) === 'true') {
+    return;
+  }
+
+  const localSessions = getSessionIndex();
+  if (localSessions.length === 0) {
+    window.localStorage.setItem(LOCAL_IMPORT_MARKER, 'true');
+    return;
+  }
+
+  const importedSessions = await Promise.all(
+    localSessions.map(async (session) => ({
+      sessionId: session.sessionId,
+      title: session.title,
+      createdAt: session.createdAt,
+      lastActiveAt: session.lastActiveAt,
+      model: session.model,
+      messages: await loadThreadMessages(session.sessionId),
+    })),
+  );
+
+  await importLocalAccountHistory({
+    sessions: importedSessions.filter((session) => session.messages.length > 0),
+    importedAt: new Date().toISOString(),
+  });
+
+  window.localStorage.setItem(LOCAL_IMPORT_MARKER, 'true');
+}
+
 export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -177,10 +229,16 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     onRunStateChange?.(isRunning);
   }, [isRunning, onRunStateChange]);
 
-  const reloadSessions = useCallback(() => {
-    const nextSessions = getSessionIndex();
-    setSessions(nextSessions);
-    return nextSessions;
+  const reloadSessions = useCallback(async (): Promise<SessionSummary[]> => {
+    const nextSessions = await loadServerSessions();
+    if (nextSessions.length > 0) {
+      setSessions(nextSessions);
+      return nextSessions;
+    }
+
+    const localSessions = getSessionIndex();
+    setSessions(localSessions);
+    return localSessions;
   }, []);
 
   const persistSnapshot = useCallback(async (targetSessionId: string, snapshot: readonly ThreadMessage[]) => {
@@ -188,6 +246,7 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     const now = new Date().toISOString();
     const existing = getSessionIndex().find((entry) => entry.sessionId === targetSessionId);
     const title = getThreadTitle(snapshot);
+    const provider = resolveProvider(model).id;
 
     await saveThreadMessages(targetSessionId, snapshot);
     updateIndex(targetSessionId, {
@@ -198,13 +257,26 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
       messageCount: snapshot.length,
     });
     setActiveSessionId(targetSessionId);
-    reloadSessions();
+    try {
+      await saveAccountSessionSnapshot(targetSessionId, {
+        title,
+        model,
+        provider,
+        createdAt: existing?.createdAt ?? now,
+        lastActiveAt: now,
+        messages: snapshot as ThreadMessage[],
+      });
+    } catch {
+      // Keep the local cache in sync even if the network is temporarily unavailable.
+    }
+    await reloadSessions();
   }, [reloadSessions]);
 
   const createThread = useCallback(async () => {
     const targetSessionId = createSessionId();
     const model = (await fetchRuntimeModel()) ?? loadPreferences().model ?? DEFAULT_MODEL;
     const now = new Date().toISOString();
+    const provider = resolveProvider(model).id;
 
     setError(null);
     setSessionId(targetSessionId);
@@ -220,7 +292,19 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
       messageCount: 0,
     });
     await saveThreadMessages(targetSessionId, []);
-    reloadSessions();
+    try {
+      await saveAccountSessionSnapshot(targetSessionId, {
+        title: '新会话',
+        model,
+        provider,
+        createdAt: now,
+        lastActiveAt: now,
+        messages: [],
+      });
+    } catch {
+      // Best-effort cloud persistence.
+    }
+    await reloadSessions();
     return targetSessionId;
   }, [reloadSessions, updateMessagesState]);
 
@@ -254,12 +338,13 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     }
 
     setError(null);
-    const restoredMessages = await loadThreadMessages(targetSessionId);
+    const serverSnapshot = await loadAccountSession(targetSessionId);
+    const restoredMessages = serverSnapshot?.messages ?? (await loadThreadMessages(targetSessionId));
     setSessionId(targetSessionId);
     sessionIdRef.current = targetSessionId;
     updateMessagesState(restoredMessages);
     setActiveSessionId(targetSessionId);
-    reloadSessions();
+    await reloadSessions();
 
     const model = getSessionIndex().find((entry) => entry.sessionId === targetSessionId)?.model ?? DEFAULT_MODEL;
     await ensureRuntimeSession(targetSessionId, restoredMessages, model);
@@ -414,15 +499,43 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     }
   }, []);
 
+  const deleteThread = useCallback(async (targetSessionId: string) => {
+    if (!targetSessionId || isRunningRef.current) {
+      return;
+    }
+
+    try {
+      await deleteAccountSession(targetSessionId);
+    } catch {
+      // If the network fails, still clear local state to keep the UI usable.
+    }
+
+    await Promise.all([deleteThreadMessages(targetSessionId), saveThreadMessages(targetSessionId, [])]);
+    removeFromIndex(targetSessionId);
+    const nextSessions = getSessionIndex().filter((session) => session.sessionId !== targetSessionId);
+    setSessionId((current) => (current === targetSessionId ? null : current));
+    if (sessionIdRef.current === targetSessionId) {
+      sessionIdRef.current = null;
+    }
+    if (sessionId === targetSessionId) {
+      updateMessagesState([]);
+    }
+    setSessions(nextSessions);
+    setActiveSessionId(sessionIdRef.current);
+    await reloadSessions();
+  }, [reloadSessions, sessionId, updateMessagesState]);
+
   useEffect(() => {
     const initialize = async () => {
-      const list = reloadSessions();
+      await maybeImportLegacySessions();
+      const list = await reloadSessions();
       const activeSessionId = getActiveSessionId();
       if (!activeSessionId || !list.some((entry) => entry.sessionId === activeSessionId)) {
         return;
       }
 
-      const restoredMessages = await loadThreadMessages(activeSessionId);
+      const snapshot = await loadAccountSession(activeSessionId);
+      const restoredMessages = snapshot?.messages ?? (await loadThreadMessages(activeSessionId));
       setSessionId(activeSessionId);
       sessionIdRef.current = activeSessionId;
       updateMessagesState(restoredMessages);
@@ -464,6 +577,7 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     runtimeStore,
     startNewThread,
     switchThread,
+    deleteThread,
     sendMessage,
     cancelRun,
     approveTool,

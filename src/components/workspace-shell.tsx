@@ -23,8 +23,10 @@ import {
   Square,
   Sparkles,
   Wrench,
+  LogOut,
 } from 'lucide-react';
 
+import { AuthPanel } from '@/components/auth-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
@@ -35,6 +37,7 @@ import { useAssistantThreads } from '@/hooks/use-assistant-threads';
 import type { DexterApprovalView, DexterAssistantMetadata } from '@/webui/client/assistant-adapter';
 import { summarizeToolTarget } from '@/webui/client/tool-summary';
 import type { ApprovalDecision } from '@/agent/types';
+import { getCurrentAccount, logoutAccount, type AccountUser } from '@/webui/client/account-api';
 
 type RuntimeStatus = 'Checking' | 'Connected' | 'Offline';
 
@@ -286,7 +289,13 @@ function Thread({
   );
 }
 
-export function WorkspaceShell() {
+function AuthenticatedWorkspace({
+  user,
+  onSignOut,
+}: {
+  user: AccountUser;
+  onSignOut: () => Promise<void>;
+}) {
   const [status, setStatus] = useState<RuntimeStatus>('Checking');
   const [isRunning, setIsRunning] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -338,6 +347,7 @@ export function WorkspaceShell() {
           isRunning={threads.isRunning}
           onNewThread={() => void threads.startNewThread()}
           onSelectThread={(targetSessionId) => void threads.switchThread(targetSessionId)}
+          onDeleteThread={(targetSessionId) => void threads.deleteThread(targetSessionId)}
         />
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -359,6 +369,20 @@ export function WorkspaceShell() {
                   <span className="hidden sm:inline">刷新</span>
                 </Button>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="hidden text-xs text-zinc-500 md:inline">
+                  {user.email}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void onSignOut()}
+                >
+                  <LogOut aria-hidden="true" className="h-4 w-4" />
+                  <span className="hidden sm:inline">退出</span>
+                </Button>
+              </div>
             </div>
             {error ? (
               <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 sm:hidden">
@@ -371,5 +395,59 @@ export function WorkspaceShell() {
         </div>
       </main>
     </AssistantRuntimeProvider>
+  );
+}
+
+export function WorkspaceShell() {
+  const [user, setUser] = useState<AccountUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const current = await getCurrentAccount();
+        setUser(current);
+      } catch {
+        setUser(null);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    void loadUser();
+  }, []);
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f7f4] text-sm text-zinc-500">
+        正在检查登录状态...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <AuthPanel
+        mode={authMode}
+        onAuthenticated={async () => {
+          const current = await getCurrentAccount();
+          if (current) {
+            setUser(current);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <AuthenticatedWorkspace
+      user={user}
+      onSignOut={async () => {
+        await logoutAccount();
+        setUser(null);
+        setAuthMode('login');
+      }}
+    />
   );
 }

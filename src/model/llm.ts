@@ -1,5 +1,5 @@
-import { AIMessage, AIMessageChunk, BaseMessage } from '@langchain/core/messages';
-import { ChatOpenAI } from '@langchain/openai';
+import { AIMessage, AIMessageChunk, BaseMessage, BaseMessageChunk } from '@langchain/core/messages';
+import { ChatOpenAI, ChatOpenAICompletions } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOllama } from '@langchain/ollama';
@@ -9,6 +9,7 @@ import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { StructuredToolInterface } from '@langchain/core/tools';
 import { Runnable } from '@langchain/core/runnables';
 import { z } from 'zod';
+import type OpenAI from 'openai';
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/prompts';
 import type { TokenUsage } from '@/agent/types';
 import { logger } from '@/utils';
@@ -58,6 +59,76 @@ interface ModelOpts {
 
 type ModelFactory = (name: string, opts: ModelOpts) => BaseChatModel;
 
+function isSiliconFlowBaseUrl(baseUrl?: string): boolean {
+  if (!baseUrl) {
+    return false;
+  }
+
+  try {
+    const url = new URL(baseUrl);
+    return url.hostname.includes('siliconflow');
+  } catch {
+    return baseUrl.includes('siliconflow');
+  }
+}
+
+function isSiliconFlowReasoningModel(modelName: string): boolean {
+  return /^glm-/i.test(modelName) || /\/GLM-/i.test(modelName) || /glm/i.test(modelName);
+}
+
+class SiliconFlowChatOpenAICompletions extends ChatOpenAICompletions {
+  protected override _convertCompletionsDeltaToBaseMessageChunk(
+    delta: Record<string, any>,
+    rawResponse: OpenAI.Chat.Completions.ChatCompletionChunk,
+    defaultRole?: OpenAI.Chat.ChatCompletionRole,
+  ): BaseMessageChunk {
+    const chunk = super._convertCompletionsDeltaToBaseMessageChunk(delta, rawResponse, defaultRole);
+    const reasoningContent = delta.reasoning_content;
+
+    if (
+      typeof reasoningContent === 'string' &&
+      reasoningContent.length > 0 &&
+      AIMessageChunk.isInstance(chunk)
+    ) {
+      return new AIMessageChunk({
+        ...chunk,
+        additional_kwargs: {
+          ...chunk.additional_kwargs,
+          reasoning_content: reasoningContent,
+        },
+      });
+    }
+
+    return chunk;
+  }
+
+  protected override _convertCompletionsMessageToBaseMessage(
+    message: OpenAI.Chat.Completions.ChatCompletionMessage,
+    rawResponse: OpenAI.Chat.Completions.ChatCompletion,
+  ): BaseMessage {
+    const baseMessage = super._convertCompletionsMessageToBaseMessage(message, rawResponse);
+    const reasoningContent = (message as OpenAI.Chat.Completions.ChatCompletionMessage & {
+      reasoning_content?: string;
+    }).reasoning_content;
+
+    if (
+      typeof reasoningContent === 'string' &&
+      reasoningContent.length > 0 &&
+      AIMessage.isInstance(baseMessage)
+    ) {
+      return new AIMessage({
+        ...baseMessage,
+        additional_kwargs: {
+          ...baseMessage.additional_kwargs,
+          reasoning_content: reasoningContent,
+        },
+      });
+    }
+
+    return baseMessage;
+  }
+}
+
 function getApiKey(envVar: string, override?: string): string {
   if (override && override.trim().length > 0) {
     return override;
@@ -66,6 +137,18 @@ function getApiKey(envVar: string, override?: string): string {
   const apiKey = process.env[envVar];
   if (!apiKey) {
     throw new Error(`[LLM] ${envVar} not found in environment variables`);
+  }
+  return apiKey;
+}
+
+function getSiliconFlowApiKey(override?: string): string {
+  if (override && override.trim().length > 0) {
+    return override;
+  }
+
+  const apiKey = process.env.SILICONFLOW_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error('[LLM] SILICONFLOW_API_KEY or OPENAI_API_KEY not found in environment variables');
   }
   return apiKey;
 }
@@ -187,6 +270,38 @@ export function getChatModel(
 ): BaseChatModel {
   const opts: ModelOpts = { streaming, apiKey, baseUrl };
   const provider = resolveProvider(modelName);
+
+  if (isSiliconFlowBaseUrl(baseUrl) && isSiliconFlowReasoningModel(modelName)) {
+    const { baseUrl: runtimeBaseUrl, ...sharedOpts } = opts;
+    const completions = new SiliconFlowChatOpenAICompletions({
+      model: modelName,
+      ...sharedOpts,
+      apiKey: getSiliconFlowApiKey(apiKey),
+      configuration: {
+        ...(runtimeBaseUrl ? { baseURL: runtimeBaseUrl } : {}),
+      },
+      modelKwargs: {
+        enable_thinking: true,
+        thinking_budget: 4096,
+      },
+    });
+
+    return new ChatOpenAI({
+      model: modelName,
+      ...sharedOpts,
+      useResponsesApi: false,
+      apiKey: getSiliconFlowApiKey(apiKey),
+      configuration: {
+        ...(runtimeBaseUrl ? { baseURL: runtimeBaseUrl } : {}),
+      },
+      modelKwargs: {
+        enable_thinking: true,
+        thinking_budget: 4096,
+      },
+      completions,
+    });
+  }
+
   const factory = MODEL_FACTORIES[provider.id] ?? DEFAULT_FACTORY;
   return factory(modelName, opts);
 }

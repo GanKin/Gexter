@@ -25,6 +25,7 @@ export type WebSessionStatus = 'idle' | 'running' | 'complete' | 'aborted' | 'er
 
 export type WebRuntimeSession = {
   id: string;
+  userId: string | null;
   model: string;
   modelProvider: string;
   apiKey?: string;

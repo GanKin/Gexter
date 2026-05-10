@@ -659,18 +659,58 @@ const MODE_PRIORITY: Record<StreamMode, number> = {
 function inspectChunkContent(
   chunk: AIMessageChunk,
 ): { charDelta: number; mode: StreamMode; textDelta?: string; thinkingDelta?: string } {
-  const content = chunk.content;
-  if (typeof content === 'string') {
-    return { charDelta: content.length, mode: 'responding', textDelta: content };
-  }
-  if (!Array.isArray(content)) {
-    return { charDelta: 0, mode: 'responding' };
-  }
-
   let charDelta = 0;
   let mode: StreamMode = 'responding';
   const textParts: string[] = [];
   const thinkingParts: string[] = [];
+  const appendText = (value: unknown): void => {
+    if (typeof value === 'string' && value.length > 0) {
+      textParts.push(value);
+      charDelta += value.length;
+    }
+  };
+  const appendThinking = (value: unknown): void => {
+    if (typeof value === 'string' && value.length > 0) {
+      thinkingParts.push(value);
+      charDelta += value.length;
+      if (MODE_PRIORITY.thinking > MODE_PRIORITY[mode]) mode = 'thinking';
+    }
+  };
+  const appendReasoningMetadata = (): void => {
+    const reasoning = chunk.additional_kwargs?.reasoning;
+    if (reasoning && typeof reasoning === 'object') {
+      const summary = (reasoning as { summary?: unknown }).summary;
+      if (Array.isArray(summary)) {
+        for (const item of summary) {
+          if (!item || typeof item !== 'object') continue;
+          appendThinking((item as { text?: unknown }).text);
+        }
+      }
+    }
+
+    appendThinking(chunk.additional_kwargs?.reasoning_content);
+  };
+
+  const content = chunk.content;
+  if (typeof content === 'string') {
+    appendText(content);
+    appendReasoningMetadata();
+    return {
+      charDelta,
+      mode: thinkingParts.length > 0 ? 'thinking' : 'responding',
+      textDelta: textParts.join('') || undefined,
+      thinkingDelta: thinkingParts.join('') || undefined,
+    };
+  }
+  if (!Array.isArray(content)) {
+    appendReasoningMetadata();
+    return {
+      charDelta,
+      mode: thinkingParts.length > 0 ? 'thinking' : 'responding',
+      thinkingDelta: thinkingParts.join('') || undefined,
+    };
+  }
+
   for (const part of content) {
     if (!part || typeof part !== 'object') continue;
     const partType = (part as { type?: string }).type;
@@ -681,22 +721,25 @@ function inspectChunkContent(
         textParts.push(text);
       }
       if (MODE_PRIORITY.responding > MODE_PRIORITY[mode]) mode = 'responding';
-    } else if (partType === 'thinking' || partType === 'redacted_thinking') {
-      const thinkingText = (part as { thinking?: string }).thinking;
+    } else if (partType === 'thinking' || partType === 'redacted_thinking' || partType === 'reasoning' || partType === 'reasoning_content') {
+      const thinkingText = (part as { thinking?: string; reasoning?: string; reasoning_content?: string }).thinking
+        ?? (part as { reasoning?: string }).reasoning
+        ?? (part as { reasoning_content?: string }).reasoning_content;
       if (typeof thinkingText === 'string') {
-        charDelta += thinkingText.length;
-        thinkingParts.push(thinkingText);
+        appendThinking(thinkingText);
       }
-      if (MODE_PRIORITY.thinking > MODE_PRIORITY[mode]) mode = 'thinking';
     } else if (partType === 'tool_use' || partType === 'input_json_delta') {
       const partialJson = (part as { input?: unknown; partial_json?: string }).partial_json;
       if (typeof partialJson === 'string') charDelta += partialJson.length;
       if (MODE_PRIORITY['tool-input'] > MODE_PRIORITY[mode]) mode = 'tool-input';
     }
   }
+
+  appendReasoningMetadata();
+
   return {
     charDelta,
-    mode,
+    mode: thinkingParts.length > 0 && MODE_PRIORITY.thinking > MODE_PRIORITY[mode] ? 'thinking' : mode,
     ...(textParts.length > 0 ? { textDelta: textParts.join('') } : {}),
     ...(thinkingParts.length > 0 ? { thinkingDelta: thinkingParts.join('') } : {}),
   };
