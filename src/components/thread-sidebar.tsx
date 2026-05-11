@@ -1,115 +1,219 @@
 'use client';
 
-import { Clock3, PanelLeft, Plus, Sparkles, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+
+import { Inbox, PanelLeftClose, Plus, Trash2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { SessionSummary } from '@/lib/session-index';
+
+type RuntimeStatus = 'Checking' | 'Connected' | 'Offline';
 
 type ThreadSidebarProps = {
   sessions: SessionSummary[];
   activeSessionId: string | null;
   isRunning: boolean;
+  runtimeStatus: RuntimeStatus;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
   onNewThread: () => void;
   onSelectThread: (sessionId: string) => void;
   onDeleteThread: (sessionId: string) => void;
 };
 
+function SidebarIcon({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex size-6 items-center justify-center rounded-md bg-zinc-200 text-zinc-600',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function PlaceholderThreads({
+  activeThreadIndex,
+  isCollapsed,
+}: {
+  activeThreadIndex: number;
+  isCollapsed: boolean;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
+      {Array.from({ length: 14 }).map((_, index) => {
+        const isActive = index === activeThreadIndex;
+        return (
+          <div
+            key={`placeholder-thread-${index}`}
+            className={cn(
+              'group flex items-center gap-2 rounded-[6px] px-2 py-1.5 transition',
+              isActive ? 'bg-[#f1f5ff]' : 'hover:bg-zinc-100/80',
+            )}
+          >
+            <button
+              type="button"
+              className={cn(
+                'min-w-0 flex-1 truncate text-left text-[14px] leading-[1.4] transition',
+                isActive ? 'text-[#17171c]' : 'text-[#75758a]',
+                isCollapsed && 'sr-only',
+              )}
+              disabled
+            >
+              Tread title ....
+            </button>
+            {!isCollapsed ? (
+              <button
+                type="button"
+                aria-label="删除会话"
+                className="rounded-md p-1 text-zinc-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                disabled
+              >
+                <Trash2 aria-hidden="true" className="size-3.5" />
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ThreadSidebar({
   sessions,
   activeSessionId,
   isRunning,
+  runtimeStatus,
+  isCollapsed,
+  onToggleCollapse,
   onNewThread,
   onSelectThread,
   onDeleteThread,
 }: ThreadSidebarProps) {
+  const titleColumnClassName = isCollapsed ? 'sr-only' : 'min-w-0 flex-1';
+
   return (
-    <aside className="flex border-zinc-200 bg-[#f1f0ed] text-zinc-700 md:h-screen md:w-72 md:shrink-0 md:flex-col md:border-r">
-      <div className="flex w-full items-center gap-2 overflow-x-auto px-3 py-3 md:flex-col md:items-stretch md:gap-0 md:overflow-y-auto md:px-4 md:py-5">
-        <div className="flex w-full items-start justify-between gap-3 px-1 pb-2 md:px-0 md:pb-6">
+    <aside
+      className={cn(
+        'flex shrink-0 border-zinc-200 bg-white text-zinc-700',
+        'border-b md:h-screen md:flex-col md:border-b-0 md:border-r',
+        isCollapsed ? 'md:w-[72px]' : 'md:w-[220px]',
+      )}
+    >
+      <div className="flex h-full w-full flex-col px-4 pb-4 pt-4">
+        <div className="flex items-center justify-between pb-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm">
-              <Sparkles aria-hidden="true" className="h-7 w-7" />
+            <div className="flex size-12 items-center justify-center rounded-full bg-white text-[34px] font-black leading-none tracking-[-0.08em] text-[#17171c]">
+              G
             </div>
-            <div className="hidden md:block" />
+            {!isCollapsed ? <span className="sr-only">Dexter</span> : null}
           </div>
 
           <button
             type="button"
-            aria-label="切换侧边栏"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-zinc-200/70 hover:text-zinc-800"
+            aria-label={isCollapsed ? '展开侧边栏' : '收起侧边栏'}
+            onClick={onToggleCollapse}
+            className="inline-flex size-6 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950"
           >
-            <PanelLeft aria-hidden="true" className="h-5 w-5" />
+            <PanelLeftClose
+              aria-hidden="true"
+              className={cn('size-4 transition-transform', isCollapsed && 'rotate-180')}
+            />
           </button>
-        </div>
-
-        <div className="mb-4 hidden md:block">
-          <div className="text-[22px] font-semibold leading-none tracking-tight text-zinc-950">Dexter WebUI</div>
-          <div className="mt-2 text-sm text-zinc-500">assistant-ui Perplexity preset</div>
         </div>
 
         <button
           type="button"
           disabled={isRunning}
           onClick={onNewThread}
-          className="flex shrink-0 items-center gap-3 rounded-2xl px-3 py-2 text-left text-[15px] font-medium transition hover:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-50 md:w-full md:px-4 md:py-3"
+          className={cn(
+            'mb-8 flex items-center gap-3 rounded-[6px] px-1.5 py-3 text-left transition',
+            isRunning ? 'cursor-not-allowed opacity-60' : 'hover:bg-zinc-50',
+          )}
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 text-zinc-700">
-            <Plus aria-hidden="true" className="h-5 w-5" />
+          <SidebarIcon>
+            <Plus aria-hidden="true" className="size-3.5" />
+          </SidebarIcon>
+          <span className={titleColumnClassName}>
+            <span className="block text-[16px] leading-[1.4] text-[#75758a]">New Thread</span>
           </span>
-          <span>New</span>
         </button>
 
-        <div className="hidden h-px bg-zinc-200 md:my-4 md:block" />
-
-        <div className="flex shrink-0 items-center gap-3 px-3 py-2 text-[15px] font-medium md:px-4 md:py-3">
-          <Clock3 aria-hidden="true" className="h-5 w-5 text-zinc-500" />
-          <span>History</span>
+        <div className="mb-4 flex items-center gap-3 rounded-[6px] px-1.5 py-3 text-left transition">
+          <SidebarIcon>
+            <Inbox aria-hidden="true" className="size-3.5" />
+          </SidebarIcon>
+          <span className={titleColumnClassName}>
+            <span className="block text-[16px] leading-[1.4] text-[#75758a]">History</span>
+          </span>
         </div>
 
-        <div className="flex min-w-0 gap-1 md:mt-1 md:w-full md:flex-col md:gap-1">
+        <div className={cn('flex min-h-0 flex-1 flex-col gap-1 pb-2', isCollapsed && 'items-center')}>
           {sessions.length === 0 ? (
-            <div className="hidden px-4 py-3 text-sm leading-6 text-zinc-500 md:block">
-              还没有历史会话。
-            </div>
+            <PlaceholderThreads activeThreadIndex={0} isCollapsed={isCollapsed} />
           ) : (
-            sessions.map((session) => {
-              const isActive = session.sessionId === activeSessionId;
-              return (
-                <div
-                  key={session.sessionId}
-                  className={cn(
-                    'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 transition md:px-4',
-                    isActive ? 'bg-white/75 shadow-sm' : 'hover:bg-zinc-200/70',
-                  )}
-                >
-                  <button
-                    type="button"
-                    disabled={isRunning}
-                    onClick={() => onSelectThread(session.sessionId)}
+            <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1 pt-1">
+              {sessions.map((session, index) => {
+                const isActive = session.sessionId === activeSessionId || (!activeSessionId && index === 0);
+                return (
+                  <div
+                    key={session.sessionId}
                     className={cn(
-                      'min-w-0 flex-1 truncate text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50',
-                      isActive ? 'font-medium text-zinc-950' : 'text-zinc-600 hover:text-zinc-950',
+                      'group flex items-center gap-2 rounded-[6px] px-3 py-1.5 transition',
+                      isActive ? 'bg-[#f1f5ff]' : 'hover:bg-zinc-100/80',
                     )}
                   >
-                    {session.title}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isRunning}
-                    aria-label={`删除 ${session.title}`}
-                    className="rounded-lg p-1 text-zinc-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() => {
-                      if (confirm(`删除会话「${session.title}」？`)) {
-                        onDeleteThread(session.sessionId);
-                      }
-                    }}
-                  >
-                    <Trash2 aria-hidden="true" className="h-4 w-4" />
-                  </button>
-                </div>
-              );
-            })
+                    <button
+                      type="button"
+                      disabled={isRunning}
+                      onClick={() => onSelectThread(session.sessionId)}
+                      className={cn(
+                        'min-w-0 flex-1 truncate text-left text-[14px] leading-[1.4] transition disabled:cursor-not-allowed',
+                        isActive ? 'text-[#17171c]' : 'text-[#75758a]',
+                        isCollapsed && 'sr-only',
+                      )}
+                    >
+                      {session.title}
+                    </button>
+                    {!isCollapsed ? (
+                      <button
+                        type="button"
+                        disabled={isRunning}
+                        aria-label={`删除 ${session.title}`}
+                        className="rounded-md p-1 text-zinc-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 group-hover:opacity-100"
+                        onClick={() => {
+                          if (confirm(`删除会话「${session.title}」？`)) {
+                            onDeleteThread(session.sessionId);
+                          }
+                        }}
+                      >
+                        <Trash2 aria-hidden="true" className="size-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
           )}
+        </div>
+
+        <div className="mt-auto pt-3">
+          <div
+            className={cn(
+              'inline-flex items-center rounded-full px-4 py-1.5 text-[12px] leading-none text-[#17171c]',
+              runtimeStatus === 'Offline' ? 'bg-[#ffe4e4]' : 'bg-[#edfce9]',
+            )}
+          >
+            {runtimeStatus === 'Checking' ? 'Checking' : runtimeStatus === 'Offline' ? 'Offline' : 'Connected'}
+          </div>
         </div>
       </div>
     </aside>

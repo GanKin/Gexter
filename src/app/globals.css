@@ -3,26 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --background: 40 33% 98%;
+  --background: 0 0% 100%;
   --foreground: 215 18% 14%;
-  --card: 40 35% 99%;
+  --card: 0 0% 100%;
   --card-foreground: 215 18% 14%;
-  --popover: 40 35% 99%;
+  --popover: 0 0% 100%;
   --popover-foreground: 215 18% 14%;
   --primary: 152 28% 29%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 40 17% 92%;
+  --secondary: 210 20% 97%;
   --secondary-foreground: 215 18% 18%;
-  --muted: 40 17% 92%;
+  --muted: 210 20% 97%;
   --muted-foreground: 215 10% 42%;
-  --accent: 169 32% 88%;
+  --accent: 210 20% 97%;
   --accent-foreground: 152 28% 22%;
-  --border: 38 20% 85%;
-  --input: 38 20% 85%;
+  --border: 214 22% 91%;
+  --input: 214 22% 91%;
   --ring: 152 28% 29%;
   --radius: 1rem;
-  --font-sans: 'Geist Sans', 'Inter', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'SFMono-Regular', ui-monospace, monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', 'SFMono-Regular', ui-monospace, monospace;
 }
 
 .dark {
@@ -57,18 +57,12 @@ body {
 body {
   margin: 0;
   color: hsl(var(--foreground));
-  background:
-    radial-gradient(circle at top left, hsl(152 28% 29% / 0.12), transparent 30%),
-    radial-gradient(circle at bottom right, hsl(38 38% 72% / 0.28), transparent 34%),
-    hsl(var(--background));
+  background: hsl(var(--background));
   font-family: var(--font-sans);
 }
 
 .dark body {
-  background:
-    radial-gradient(circle at top left, hsl(152 28% 29% / 0.18), transparent 30%),
-    radial-gradient(circle at bottom right, hsl(220 16% 18% / 0.45), transparent 34%),
-    hsl(var(--background));
+  background: hsl(var(--background));
 }
 
 a {
