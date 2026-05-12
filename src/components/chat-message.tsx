@@ -94,7 +94,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 <>
                   <MarkdownRenderer content={message.content} />
                   {hasTools ? (
-                    <div className="space-y-2 border-t border-border/60 pt-3">
+                  <div className="space-y-2 border-t border-border/60 pt-3">
                       <div className="flex flex-wrap gap-2">{message.toolCalls.map(renderToolBadge)}</div>
                       <p className="text-xs text-muted-foreground">
                         共调用 {message.toolCalls.length} 个工具

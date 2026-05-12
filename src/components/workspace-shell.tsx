@@ -23,7 +23,18 @@ import {
   type TextMessagePartProps,
   type ToolCallMessagePartProps,
 } from '@assistant-ui/react';
-import { ChevronRight, CircleAlert, Loader2, PenLine, Send, ShieldCheck, Square, Wrench } from 'lucide-react';
+import {
+  ArrowUp,
+  BarChart3,
+  ChevronRight,
+  CircleAlert,
+  Clock3,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Square,
+  Wrench,
+} from 'lucide-react';
 
 import { AuthPanel } from '@/components/auth-panel';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
@@ -35,6 +46,8 @@ import type { DexterApprovalView, DexterAssistantMetadata } from '@/webui/client
 import { summarizeToolTarget } from '@/webui/client/tool-summary';
 import type { ApprovalDecision } from '@/agent/types';
 import { getCurrentAccount, type AccountUser } from '@/webui/client/account-api';
+
+const THREAD_MAX_WIDTH = '720px';
 
 /**
  * 运行时状态类型
@@ -51,7 +64,7 @@ type RuntimeStatus = 'Checking' | 'Connected' | 'Offline';
 function TextPart(_props: TextMessagePartProps) {
   const { text } = _props;
 
-  return <MarkdownRenderer content={text} className="space-y-4 text-[15px] leading-7 text-[#17171c]" />;
+  return <MarkdownRenderer content={text} className="space-y-4 text-[14px] leading-7 text-[#1d2433]" />;
 }
 
 /**
@@ -71,11 +84,11 @@ function ToolPart(props: ToolCallMessagePartProps) {
   return (
     <div
       className={cn(
-        'flex items-center gap-2 rounded-xl border px-3 py-2 text-xs',
+        'flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs shadow-[0_1px_0_rgba(15,23,42,0.02)]',
         isError
           ? 'border-red-200 bg-red-50 text-red-700'
           : isRunning
-            ? 'border-zinc-200 bg-white text-zinc-700'
+            ? 'border-[#e7edf5] bg-white text-[#5f6878]'
             : 'border-emerald-200 bg-emerald-50 text-emerald-700',
       )}
     >
@@ -106,19 +119,16 @@ function ToolGroup({ children }: { children?: ReactNode }) {
   const toolCount = Children.count(children);
 
   return (
-    <details className="group mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm text-zinc-700 outline-none transition hover:bg-zinc-50 [&::-webkit-details-marker]:hidden">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-500">
+    <details className="group mt-4 overflow-hidden rounded-[24px] border border-[#e8edf5] bg-[#fafbfc] shadow-[0_1px_0_rgba(15,23,42,0.02),0_12px_30px_rgba(15,23,42,0.03)]">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm text-[#5f6878] outline-none transition hover:bg-white/70 [&::-webkit-details-marker]:hidden">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-2xl border border-[#e8edf5] bg-white text-[#9ca3af]">
           <Wrench aria-hidden="true" className="size-4" />
         </span>
         <span className="font-medium">Tools</span>
-        <span className="text-zinc-400">{toolCount}</span>
-        <ChevronRight
-          aria-hidden="true"
-          className="ml-auto size-4 text-zinc-400 transition-transform duration-200 group-open:rotate-90"
-        />
+        <span className="text-[#9ca3af]">{toolCount}</span>
+        <ChevronRight aria-hidden="true" className="ml-auto size-4 text-[#9ca3af] transition-transform duration-200 group-open:rotate-90" />
       </summary>
-      <div className="border-t border-zinc-200 px-4 py-3">
+      <div className="border-t border-[#e8edf5] px-4 py-3">
         <div className="space-y-2">{children}</div>
       </div>
     </details>
@@ -154,7 +164,7 @@ function ApprovalCard({
   const isPending = approval.status === 'pending' && Boolean(sessionId);
 
   return (
-    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+    <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
       <div className="flex items-center gap-2 font-medium">
         <ShieldCheck aria-hidden="true" className="size-4" />
         工具需要授权：{approval.tool}
@@ -222,13 +232,13 @@ function AssistantMessage({
   const isReasoningActive = status?.type === 'running';
 
   return (
-    <MessagePrimitive.Root className="w-full py-5">
+    <MessagePrimitive.Root className="w-full py-4">
       <div className={cn('w-full', isUser ? 'max-w-[760px]' : 'max-w-[960px]')}>
         {isUser ? (
-          <div className="inline-flex rounded-[8px] bg-[#f1f5ff] px-3 py-3 text-[16px] leading-[1.4] text-[#17171c]">
+          <div className="inline-flex max-w-full rounded-[28px] bg-[#eef3fb] px-5 py-4 text-[16px] leading-6 text-[#1d2433] shadow-[0_1px_0_rgba(15,23,42,0.03)]">
             <MessagePrimitive.Parts
               components={{
-                Text: ({ text }) => <p className="whitespace-pre-wrap break-words">{text}</p>,
+                Text: ({ text }) => <p className="whitespace-pre-wrap break-words text-[14px] leading-6">{text}</p>,
                 Empty: EmptyPart,
                 ToolGroup,
                 tools: { Fallback: ToolPart },
@@ -236,7 +246,7 @@ function AssistantMessage({
             />
           </div>
         ) : (
-          <div className="space-y-4 text-[15px] leading-7 text-[#17171c]">
+          <div className="space-y-5 text-[16px] leading-8 text-[#1d2433]">
             {!isUser && (hasReasoning || isReasoningActive) ? (
               <ReasoningGroup
                 message={reasoningText}
@@ -263,51 +273,68 @@ function AssistantMessage({
   );
 }
 
-/**
- * ResearchTabHeader - 研究/对话标签页头部
- * 显示当前激活的标签页指示器
- */
-function ResearchTabHeader() {
+function EmptyState() {
   return (
-    <div className="border-b border-zinc-200">
-      <div className="inline-flex items-center gap-2 border-b-2 border-[#17171c] pb-3 pt-2">
-        <PenLine aria-hidden="true" className="size-4 text-[#17171c]" />
-        <span className="text-[16px] font-semibold leading-[1.4] text-[#17171c]">Research</span>
-      </div>
-    </div>
-  );
-}
+    <div className="flex min-h-full flex-1 items-center justify-center px-4 py-10">
+      <div className="relative w-full max-w-[720px] overflow-hidden rounded-[36px] border border-[#e8edf5] bg-white px-6 py-8 shadow-[0_20px_70px_rgba(15,23,42,0.05)] sm:px-8 sm:py-10">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,23,42,0.04),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(142,216,235,0.18),transparent_30%)]" />
+        <div className="relative space-y-8">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#e7edf5] bg-[#f8fafc] px-3 py-1.5 text-xs font-medium text-[#5f6878]">
+              <Search aria-hidden="true" className="size-3.5" />
+              新会话
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#1d2433] sm:text-[32px]">
+                先说一个你想研究的问题
+              </h2>
+              <p className="max-w-2xl text-[15px] leading-7 text-[#5f6878] sm:text-[16px]">
+                这里会保持干净的空状态，等你输入后再展开消息、图表和推理过程。
+              </p>
+            </div>
+          </div>
 
-/**
- * ResearchPreview - 空会话预览组件
- * 在没有消息时显示示例内容，引导用户开始对话
- */
-function ResearchPreview() {
-  const messageCount = useThread((thread) => thread.messages.length);
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              {
+                icon: BarChart3,
+                title: '行情回顾',
+                body: '例如：总结最近一周美股表现。',
+              },
+              {
+                icon: Search,
+                title: '个股分析',
+                body: '例如：看某只股票的催化剂和风险。',
+              },
+              {
+                icon: Clock3,
+                title: '事件追踪',
+                body: '例如：跟进财报、政策或行业变化。',
+              },
+            ].map(({ icon: Icon, title, body }) => (
+              <div key={title} className="rounded-[24px] border border-[#e8edf5] bg-[#fbfcfe] p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#1d2433]">
+                  <span className="inline-flex size-8 items-center justify-center rounded-2xl border border-[#e8edf5] bg-white text-[#9ca3af]">
+                    <Icon aria-hidden="true" className="size-4" />
+                  </span>
+                  {title}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-[#5f6878]">{body}</p>
+              </div>
+            ))}
+          </div>
 
-  // 当已有消息时隐藏预览
-  if (messageCount > 0) {
-    return null;
-  }
-
-  return (
-    <div className="space-y-6 pt-5">
-      <div className="inline-flex max-w-full rounded-[8px] bg-[#f1f5ff] px-3 py-3 text-[16px] leading-[1.4] text-[#17171c]">
-        Explain React hooks like useState and useEffect
-      </div>
-
-      <div className="flex items-center gap-2 px-3 text-[14px] leading-[1.4] text-[#75758a]">
-        <span>Completed 6 steps</span>
-        <ChevronRight aria-hidden="true" className="size-3" />
-      </div>
-
-      <div className="space-y-4 px-3 text-[#17171c]">
-        <p className="text-[32px] leading-[1.2] font-normal tracking-[-0.02em]">Title</p>
-        <p className="text-[24px] leading-[1.2] font-semibold tracking-[-0.03em]">Heading</p>
-        <p className="max-w-[920px] text-[16px] leading-[1.4]">
-          React Hooks are functions that let you “hook into” React features (like state and lifecycle) from function
-          components. They replace most class-based patterns like this.state and lifecycle methods.
-        </p>
+          <div className="flex flex-wrap gap-2">
+            {['宏观', '财报', '估值', '风险', '行业比较'].map((label) => (
+              <span
+                key={label}
+                className="inline-flex items-center rounded-full border border-[#e8edf5] bg-white px-3 py-1 text-xs font-medium text-[#5f6878]"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -324,24 +351,24 @@ function Composer() {
   const isRunning = useThread((thread) => thread.isRunning);
 
   return (
-    <div className="w-full max-w-[960px]">
-      <ComposerPrimitive.Root className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+    <div className="mx-auto w-full max-w-[680px]">
+      <ComposerPrimitive.Root className="rounded-[28px] border border-[#e1e8f1] bg-[#f8fafc]/95 p-3 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur">
         <ComposerPrimitive.Input
           autoFocus
           placeholder="Ask Dexter about markets, filings, or companies..."
-          className="max-h-48 min-h-20 w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-6 text-zinc-950 outline-none placeholder:text-zinc-400"
+          className="max-h-40 min-h-16 w-full resize-none bg-transparent px-1 py-1 text-[16px] leading-7 text-[#1d2433] outline-none placeholder:text-[#97a0af]"
         />
-        <div className="flex items-center justify-between gap-3 border-t border-zinc-100 pt-3">
-          <span className="px-2 text-xs text-zinc-500">Enter 发送，Shift+Enter 换行</span>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#e8edf5] pt-3">
+          <span className="px-1 text-xs text-[#9ca3af]">Enter 发送，Shift+Enter 换行</span>
           <div className="flex items-center gap-2">
             {isRunning ? (
-              <ComposerPrimitive.Cancel className="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 text-zinc-600 transition hover:bg-zinc-50 disabled:hidden">
+              <ComposerPrimitive.Cancel className="inline-flex size-9 items-center justify-center rounded-full border border-[#e1e8f1] bg-white text-[#5f6878] transition hover:bg-[#f4f7fb] disabled:hidden">
                 <Square aria-hidden="true" className="size-3.5 fill-current" />
                 <span className="sr-only">停止生成</span>
               </ComposerPrimitive.Cancel>
             ) : null}
-            <ComposerPrimitive.Send className="inline-flex size-9 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400">
-              <Send aria-hidden="true" className="size-4" />
+            <ComposerPrimitive.Send className="inline-flex size-9 items-center justify-center rounded-full bg-[#8ed8eb] text-[#0f172a] transition hover:bg-[#7fd0e5] disabled:cursor-not-allowed disabled:bg-[#d9e6ed] disabled:text-[#8aa0af]">
+              <ArrowUp aria-hidden="true" className="size-4" />
               <span className="sr-only">发送</span>
             </ComposerPrimitive.Send>
           </div>
@@ -365,23 +392,27 @@ function Thread({
   const messageCount = useThread((thread) => thread.messages.length);
 
   return (
-    <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
-      <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-y-auto bg-white">
-        <div className="flex min-h-full w-full flex-col px-4 pb-20 pt-5 sm:px-6 md:px-[88px] md:pb-24 md:pt-6">
-          <ResearchTabHeader />
+    <ThreadPrimitive.Root
+      className="flex h-full min-h-0 flex-1 flex-col"
+      style={{ ['--thread-max-width' as string]: THREAD_MAX_WIDTH }}
+    >
+      <ThreadPrimitive.Viewport className="min-h-0 flex-1 overflow-y-auto bg-[#fdfdff]">
+        <div className="mx-auto flex min-h-full w-full max-w-[var(--thread-max-width)] flex-1 flex-col px-4 pb-4 pt-5 sm:px-6 md:px-0 md:pt-6">
+          {messageCount === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="flex flex-1 flex-col gap-8 pt-6">
+              <ThreadPrimitive.Messages
+                components={{
+                  Message: () => <AssistantMessage sessionId={sessionId} onApprove={onApprove} />,
+                }}
+              />
+            </div>
+          )}
 
-          <div className="flex-1 pt-6">
-            <ResearchPreview />
-            <ThreadPrimitive.Messages
-              components={{
-                Message: () => <AssistantMessage sessionId={sessionId} onApprove={onApprove} />,
-              }}
-            />
-          </div>
-
-          <div className={cn('pt-20', messageCount === 0 ? 'pt-[24rem] md:pt-[34rem]' : 'md:pt-[24rem]')}>
+          <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mt-auto shrink-0 bg-[#fdfdff] pt-3 pb-2">
             <Composer />
-          </div>
+          </ThreadPrimitive.ViewportFooter>
         </div>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
@@ -448,7 +479,7 @@ function AuthenticatedWorkspace() {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <main className="flex min-h-screen flex-col overflow-hidden bg-white text-zinc-950 md:flex-row">
+      <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#fdfdff] text-zinc-950 md:flex-row">
         <ThreadSidebar
           sessions={threads.sessions}
           activeSessionId={threads.sessionId}

@@ -61,19 +61,19 @@ typography:
     letterSpacing: -0.32px
   feature-heading:
     fontFamily: Unica77 Cohere Web
-    fontSize: 24px
+    fontSize: 20px
     fontWeight: 400
     lineHeight: 1.3
     letterSpacing: 0
   body-large:
     fontFamily: Unica77 Cohere Web
-    fontSize: 18px
+    fontSize: 16px
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: 0
   body:
     fontFamily: Unica77 Cohere Web
-    fontSize: 16px
+    fontSize: 14px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: 0
@@ -91,13 +91,13 @@ typography:
     letterSpacing: 0
   mono-label:
     fontFamily: CohereMono
-    fontSize: 14px
+    fontSize: 12px
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: 0.28px
   micro:
     fontFamily: Unica77 Cohere Web
-    fontSize: 12px
+    fontSize: 10px
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: 0
@@ -266,11 +266,11 @@ Cohere does not use gradients as a generic UI fill. Gradients and color fields a
 | Section Heading | Unica77 | 48px | 400 | 1.20 | -0.48px | Split hero and CTA headings. |
 | Card Heading | Unica77 | 32px | 400 | 1.20 | -0.32px | Feature card and list section titles. |
 | Feature Heading | Unica77 | 24px | 400 | 1.30 | 0 | Cards, filters, and article titles. |
-| Body Large | Unica77 | 18px | 400 | 1.40 | 0 | Lead text and larger paragraphs. |
-| Body | Unica77 | 16px | 400 | 1.50 | 0 | Default copy and link text. |
+| Body Large | Unica77 | 16px | 400 | 1.40 | 0 | Lead text and larger paragraphs. |
+| Body | Unica77 | 14px | 400 | 1.50 | 0 | Default copy and link text. |
 | Button | Unica77 | 14px | 500 | 1.71 | 0 | Compact CTA labels. |
 | Caption | Unica77 | 14px | 400 | 1.40 | 0 | Metadata and small explanatory text. |
-| Mono Label | CohereMono | 14px | 400 | 1.40 | 0.28px | Uppercase technical labels. |
+| Mono Label | CohereMono | 12px | 400 | 1.40 | 0.28px | Uppercase technical labels. |
 | Micro | Unica77 | 12px | 400 | 1.40 | 0 | Footer, nav microcopy, and small links. |
 
 ### Principles

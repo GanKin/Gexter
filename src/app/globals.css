@@ -20,29 +20,55 @@
   --border: 214 22% 91%;
   --input: 214 22% 91%;
   --ring: 152 28% 29%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
   --radius: 1rem;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'Roboto Mono', 'SFMono-Regular', ui-monospace, monospace;
 }
 
-.dark {
-  --background: 220 20% 10%;
-  --foreground: 40 20% 90%;
-  --card: 220 15% 14%;
-  --card-foreground: 40 20% 90%;
-  --popover: 220 15% 14%;
-  --popover-foreground: 40 20% 90%;
+html:not(.dark) {
+  --background: 0 0% 100%;
+  --foreground: 215 18% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 18% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 18% 14%;
   --primary: 152 28% 29%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 15% 18%;
-  --secondary-foreground: 40 20% 90%;
-  --muted: 220 15% 18%;
-  --muted-foreground: 215 10% 70%;
-  --accent: 152 26% 22%;
-  --accent-foreground: 40 20% 90%;
-  --border: 220 14% 24%;
-  --input: 220 14% 24%;
+  --secondary: 210 20% 97%;
+  --secondary-foreground: 215 18% 18%;
+  --muted: 210 20% 97%;
+  --muted-foreground: 215 10% 42%;
+  --accent: 210 20% 97%;
+  --accent-foreground: 152 28% 22%;
+  --border: 214 22% 91%;
+  --input: 214 22% 91%;
   --ring: 152 28% 29%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
+}
+
+.dark {
+  --background: 220 47% 11%;
+  --foreground: 214 32% 91%;
+  --card: 220 39% 13%;
+  --card-foreground: 214 32% 91%;
+  --popover: 220 39% 13%;
+  --popover-foreground: 214 32% 91%;
+  --primary: 189 100% 41%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 215 28% 18%;
+  --secondary-foreground: 214 32% 91%;
+  --muted: 215 28% 18%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 189 100% 41%;
+  --accent-foreground: 222 47% 11%;
+  --border: 215 25% 27%;
+  --input: 215 25% 27%;
+  --ring: 189 100% 41%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
 }
 
 * {
@@ -57,12 +83,18 @@ body {
 body {
   margin: 0;
   color: hsl(var(--foreground));
-  background: hsl(var(--background));
+  background: #fdfdff;
   font-family: var(--font-sans);
 }
 
 .dark body {
-  background: hsl(var(--background));
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.12), transparent 32%),
+    linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--background)) 100%);
+}
+
+html:not(.dark) body {
+  background: #fdfdff;
 }
 
 a {

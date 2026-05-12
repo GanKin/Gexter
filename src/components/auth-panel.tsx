@@ -179,4 +179,3 @@ export function AuthPanel({ mode = 'login', onAuthenticated }: AuthPanelProps) {
     </main>
   );
 }
-

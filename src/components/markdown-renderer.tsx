@@ -48,7 +48,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
         tokens.push({
           key: `code-${tokens.length}`,
           node: (
-            <code className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground">
+            <code className="rounded-full border border-[#e7edf5] bg-[#f8fafc] px-1.5 py-0.5 font-mono text-[0.9em] text-[#1d2433]">
               {text.slice(index + 1, end)}
             </code>
           ),
@@ -74,7 +74,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
               href={href}
               target="_blank"
               rel="noreferrer"
-              className="underline decoration-muted-foreground/40 underline-offset-2 transition-colors hover:text-primary hover:decoration-primary"
+              className="underline decoration-[#d3dbe8] underline-offset-2 transition-colors hover:text-[#1d2433] hover:decoration-[#8ed8eb]"
             >
               {renderInlineMarkdown(label)}
             </a>
@@ -92,7 +92,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
         flushBuffer();
         tokens.push({
           key: `strong-${tokens.length}`,
-          node: <strong className="font-semibold text-foreground">{renderInlineMarkdown(text.slice(index + 2, end))}</strong>,
+          node: <strong className="font-semibold text-[#1d2433]">{renderInlineMarkdown(text.slice(index + 2, end))}</strong>,
         });
         index = end + 2;
         continue;
@@ -106,7 +106,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
         flushBuffer();
         tokens.push({
           key: `em-${tokens.length}`,
-          node: <em className="italic text-foreground">{renderInlineMarkdown(text.slice(index + 1, end))}</em>,
+          node: <em className="italic text-[#1d2433]">{renderInlineMarkdown(text.slice(index + 1, end))}</em>,
         });
         index = end + 1;
         continue;
@@ -127,14 +127,14 @@ function renderParagraph(text: string, key: string) {
 
   if (headingMatch && headingMatch[1]) {
     return (
-      <p key={key} className="text-lg font-semibold leading-snug text-foreground">
+      <p key={key} className="text-[14px] font-semibold leading-7 text-[#1d2433]">
         {renderInlineMarkdown(headingMatch[1])}
       </p>
     );
   }
 
   return (
-    <p key={key} className="whitespace-pre-wrap leading-7 text-foreground">
+    <p key={key} className="whitespace-pre-wrap text-[14px] leading-7 text-[#1d2433]">
       {renderInlineMarkdown(text)}
     </p>
   );
@@ -152,10 +152,10 @@ function renderTableBlock(tableText: string, key: string) {
   return (
     <div
       key={key}
-      className="overflow-x-auto rounded-xl border border-border/70 bg-muted/30 shadow-sm"
+      className="overflow-x-auto rounded-[24px] border border-[#e8edf5] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.04)]"
     >
-      <table className="w-full table-fixed border-collapse text-sm leading-6 text-foreground">
-        <thead className="bg-muted/60">
+      <table className="w-full table-fixed border-collapse text-sm leading-6 text-[#1d2433]">
+        <thead className="bg-[#fbfcfe]">
           <tr>
             {parsed.headers.map((header, index) => {
               const alignment = parsed.alignments[index] ?? 'left';
@@ -163,7 +163,7 @@ function renderTableBlock(tableText: string, key: string) {
                 <th
                   key={`${key}-head-${index}`}
                   scope="col"
-                  className="border-b border-border/60 px-3 py-2 font-semibold text-foreground align-top"
+                  className="border-b border-[#e8edf5] px-3 py-2 text-[12px] font-semibold text-[#1d2433] align-top"
                   style={{ textAlign: alignment }}
                 >
                   {renderInlineMarkdown(header)}
@@ -174,13 +174,13 @@ function renderTableBlock(tableText: string, key: string) {
         </thead>
         <tbody>
           {tableRows.map((row, rowIndex) => (
-            <tr key={`${key}-row-${rowIndex}`} className="odd:bg-background/40">
+            <tr key={`${key}-row-${rowIndex}`} className="odd:bg-[#fbfcfe]">
               {parsed.headers.map((_, columnIndex) => {
                 const alignment = parsed.alignments[columnIndex] ?? 'left';
                 return (
                   <td
                     key={`${key}-cell-${rowIndex}-${columnIndex}`}
-                    className="border-b border-border/40 px-3 py-2 align-top text-foreground [overflow-wrap:anywhere]"
+                    className="border-b border-[#eef2f7] px-3 py-2 align-top text-[#1d2433] [overflow-wrap:anywhere]"
                     style={{ textAlign: alignment }}
                   >
                     {renderInlineMarkdown(row[columnIndex] ?? '')}
@@ -225,9 +225,9 @@ function renderMarkdownBlocks(content: string): ReactNode[] {
         <pre
           key={`codeblock-${blocks.length}`}
           data-language={language || undefined}
-          className="overflow-x-auto rounded-xl border border-border/70 bg-muted/60 p-4 font-mono text-sm leading-6 text-foreground"
+          className="overflow-x-auto rounded-[24px] border border-[#e8edf5] bg-[#fbfcfe] p-5 font-mono text-sm leading-6 text-[#1d2433] shadow-[0_14px_34px_rgba(15,23,42,0.04)]"
         >
-          <code className="block whitespace-pre">
+          <code className="block whitespace-pre rounded-[18px] bg-white/70 p-3">
             {codeLines.join('\n')}
           </code>
         </pre>,
@@ -239,10 +239,7 @@ function renderMarkdownBlocks(content: string): ReactNode[] {
     if (headingMatch) {
       const level = headingMatch[1].length;
       const text = headingMatch[2] ?? '';
-      const headingClassName = cn(
-        'font-semibold leading-snug text-foreground',
-        level <= 2 ? 'text-xl' : 'text-lg',
-      );
+      const headingClassName = cn('font-semibold leading-snug text-[#1d2433]', level === 1 ? 'text-[20px]' : 'text-[18px]');
       const renderedHeading = renderInlineMarkdown(text);
 
       if (level === 1) {
@@ -281,7 +278,7 @@ function renderMarkdownBlocks(content: string): ReactNode[] {
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(trimmed)) {
-      blocks.push(<hr key={`hr-${blocks.length}`} className="border-border/70" />);
+      blocks.push(<hr key={`hr-${blocks.length}`} className="border-[#e8edf5]" />);
       index += 1;
       continue;
     }
@@ -316,7 +313,7 @@ function renderMarkdownBlocks(content: string): ReactNode[] {
       blocks.push(
         <blockquote
           key={`quote-${blocks.length}`}
-          className="border-l-2 border-primary/30 pl-4 text-muted-foreground"
+          className="border-l-2 border-[#d6deea] pl-4 text-[#5f6878]"
         >
           <div className="space-y-2">{quoteLines.map((line, quoteIndex) => renderParagraph(line, `quote-${blocks.length}-${quoteIndex}`))}</div>
         </blockquote>,
@@ -355,7 +352,7 @@ function renderMarkdownBlocks(content: string): ReactNode[] {
         <ListTag
           key={`list-${blocks.length}`}
           className={cn(
-            'space-y-2 pl-6 leading-7 text-foreground',
+            'space-y-2 pl-6 leading-7 text-[#1d2433]',
             ordered ? 'list-decimal' : 'list-disc',
           )}
         >

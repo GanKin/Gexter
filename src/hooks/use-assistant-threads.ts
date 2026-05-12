@@ -43,6 +43,23 @@ type RuntimeStatusSetter = (isRunning: boolean) => void;
 
 const LOCAL_IMPORT_MARKER = 'dexter-cloud-history-imported';
 
+function mergeSessionSummaries(
+  primarySessions: readonly SessionSummary[],
+  fallbackSessions: readonly SessionSummary[],
+): SessionSummary[] {
+  const merged = new Map<string, SessionSummary>();
+
+  for (const session of fallbackSessions) {
+    merged.set(session.sessionId, session);
+  }
+
+  for (const session of primarySessions) {
+    merged.set(session.sessionId, session);
+  }
+
+  return [...merged.values()].sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+}
+
 function createMessageId(): string {
   return `msg-${crypto.randomUUID()}`;
 }
@@ -110,6 +127,16 @@ function getThreadTitle(messages: readonly ThreadMessage[]): string {
     .trim();
 
   return buildSessionTitle(text);
+}
+
+function formatNewThreadTitle(createdAtIso: string): string {
+  const time = new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(createdAtIso));
+
+  return `新会话 · ${time}`;
 }
 
 async function fetchRuntimeModel(): Promise<string | null> {
@@ -209,6 +236,8 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
   const sessionIdRef = useRef<string | null>(sessionId);
   const isRunningRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const runSettlementRef = useRef<Promise<void> | null>(null);
+  const resolveRunSettlementRef = useRef<(() => void) | null>(null);
 
   const updateMessagesState = useCallback((nextMessages: readonly ThreadMessage[]) => {
     const next = [...nextMessages];
@@ -229,23 +258,23 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     onRunStateChange?.(isRunning);
   }, [isRunning, onRunStateChange]);
 
-  const reloadSessions = useCallback(async (): Promise<SessionSummary[]> => {
-    const nextSessions = await loadServerSessions();
-    if (nextSessions.length > 0) {
-      setSessions(nextSessions);
-      return nextSessions;
-    }
+  const waitForRunToSettle = useCallback(async () => {
+    await (runSettlementRef.current ?? Promise.resolve());
+  }, []);
 
+  const reloadSessions = useCallback(async (): Promise<SessionSummary[]> => {
+    const serverSessions = await loadServerSessions();
     const localSessions = getSessionIndex();
-    setSessions(localSessions);
-    return localSessions;
+    const nextSessions = mergeSessionSummaries(serverSessions, localSessions);
+    setSessions(nextSessions);
+    return nextSessions;
   }, []);
 
   const persistSnapshot = useCallback(async (targetSessionId: string, snapshot: readonly ThreadMessage[]) => {
     const model = (await fetchRuntimeModel()) ?? loadPreferences().model ?? DEFAULT_MODEL;
     const now = new Date().toISOString();
     const existing = getSessionIndex().find((entry) => entry.sessionId === targetSessionId);
-    const title = getThreadTitle(snapshot);
+    const title = snapshot.length > 0 ? getThreadTitle(snapshot) : existing?.title ?? formatNewThreadTitle(now);
     const provider = resolveProvider(model).id;
 
     await saveThreadMessages(targetSessionId, snapshot);
@@ -277,15 +306,16 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     const model = (await fetchRuntimeModel()) ?? loadPreferences().model ?? DEFAULT_MODEL;
     const now = new Date().toISOString();
     const provider = resolveProvider(model).id;
+    const title = formatNewThreadTitle(now);
 
     setError(null);
     setSessionId(targetSessionId);
     sessionIdRef.current = targetSessionId;
     updateMessagesState([]);
     setActiveSessionId(targetSessionId);
-    addToIndex(targetSessionId, '新会话', model);
+    addToIndex(targetSessionId, title, model);
     updateIndex(targetSessionId, {
-      title: '新会话',
+      title,
       createdAt: now,
       lastActiveAt: now,
       model,
@@ -294,7 +324,7 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     await saveThreadMessages(targetSessionId, []);
     try {
       await saveAccountSessionSnapshot(targetSessionId, {
-        title: '新会话',
+        title,
         model,
         provider,
         createdAt: now,
@@ -315,18 +345,6 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
 
     return createThread();
   }, [createThread]);
-
-  const startNewThread = useCallback(async () => {
-    if (isRunningRef.current) {
-      return;
-    }
-
-    if (sessionIdRef.current) {
-      await persistSnapshot(sessionIdRef.current, messagesRef.current);
-    }
-
-    await createThread();
-  }, [createThread, persistSnapshot]);
 
   const switchThread = useCallback(async (targetSessionId: string) => {
     if (!targetSessionId || isRunningRef.current || targetSessionId === sessionIdRef.current) {
@@ -375,6 +393,9 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     setIsRunning(true);
+    runSettlementRef.current = new Promise<void>((resolve) => {
+      resolveRunSettlementRef.current = resolve;
+    });
 
     let state: DexterRunState = {
       text: '',
@@ -469,6 +490,9 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     } finally {
       abortControllerRef.current = null;
       setIsRunning(false);
+      resolveRunSettlementRef.current?.();
+      resolveRunSettlementRef.current = null;
+      runSettlementRef.current = null;
       await persistSnapshot(activeSessionId, messagesRef.current);
     }
   }, [ensureThread, persistSnapshot, updateMessagesState]);
@@ -481,7 +505,22 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
 
     abortControllerRef.current?.abort();
     await abortRuntimeSession(activeSessionId);
-  }, []);
+    await waitForRunToSettle();
+  }, [waitForRunToSettle]);
+
+  const startNewThread = useCallback(async () => {
+    if (isRunningRef.current) {
+      await cancelRun();
+    }
+
+    await waitForRunToSettle();
+
+    if (sessionIdRef.current) {
+      await persistSnapshot(sessionIdRef.current, messagesRef.current);
+    }
+
+    await createThread();
+  }, [cancelRun, createThread, persistSnapshot, waitForRunToSettle]);
 
   const approveTool = useCallback(async (
     sessionIdValue: string,
@@ -583,3 +622,5 @@ export function useAssistantThreads(onRunStateChange?: RuntimeStatusSetter) {
     approveTool,
   };
 }
+
+export { mergeSessionSummaries };
